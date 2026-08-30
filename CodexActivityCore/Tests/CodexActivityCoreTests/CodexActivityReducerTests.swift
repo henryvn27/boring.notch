@@ -12,7 +12,8 @@ struct CodexActivityReducerTests {
         try serializedSnapshotIsAllowlistedAndStripsSensitivePathData()
         try rejectsReplayedOlderAndImplausiblyTimedEvents()
         try CodexBridgeServerTests.run()
-        print("CodexActivityCore: 8 tests passed")
+        try CodexHookInstallerTests.run()
+        print("CodexActivityCore: 12 tests passed")
     }
 
     private static func orderingUsesStateRecencyThenStableSessionID() throws {

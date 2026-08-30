@@ -68,8 +68,10 @@ final class CodexActivityManager: ObservableObject {
         pendingApproval: nil
     )
     @Published private(set) var bridgeError: String?
+    @Published private(set) var hookStatus = CodexHookInstaller().status()
 
     private var reducer = CodexActivityReducer()
+    private let hookInstaller = CodexHookInstaller()
     private var refreshTask: Task<Void, Never>?
     private lazy var server = CodexBridgeServer { [weak self] event in
         await self?.receive(event) ?? .deferDecision
@@ -78,6 +80,9 @@ final class CodexActivityManager: ObservableObject {
     func start() {
         guard refreshTask == nil else { return }
         do {
+            try hookInstaller.refreshInstalledHelperIfNeeded()
+            _ = try hookInstaller.repairExistingIntegrationIfNeeded(intentionallyRemoved: false)
+            hookStatus = hookInstaller.status()
             try server.start()
             bridgeError = nil
             refreshTask = Task { [weak self] in
@@ -100,6 +105,20 @@ final class CodexActivityManager: ObservableObject {
         server.stop()
         reducer.disconnect()
         snapshot = reducer.snapshot()
+    }
+
+    func installCodexIntegration() throws {
+        try hookInstaller.installOrRepair()
+        hookStatus = hookInstaller.status()
+    }
+
+    func removeCodexIntegration() throws {
+        try hookInstaller.removeIntegration()
+        hookStatus = hookInstaller.status()
+    }
+
+    func refreshCodexIntegrationStatus() {
+        hookStatus = hookInstaller.status()
     }
 
     private func receive(_ bridgeEvent: CodexBridgeEvent) -> CodexApprovalDecision? {
