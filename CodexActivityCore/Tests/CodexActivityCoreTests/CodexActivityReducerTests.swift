@@ -62,6 +62,8 @@ struct CodexActivityReducerTests {
         ), now: now))
         try expect(reducer.snapshot(now: now).pendingApproval?.id == approvalID)
         try expect(reducer.snapshot(now: now).activities.first?.state == .approvalRequired)
+        try expect(reducer.resolveApproval(id: approvalID, now: now))
+        try expect(reducer.snapshot(now: now).pendingApproval?.id != approvalID)
     }
 
     private static func exactTurnChildTombstonesPreventDelayedResurrection() throws {

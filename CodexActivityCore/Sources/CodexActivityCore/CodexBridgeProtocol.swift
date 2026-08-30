@@ -55,6 +55,13 @@ enum CodexJSONValue: Codable, Equatable, Sendable {
         guard case let .string(value) = self else { return nil }
         return value
     }
+
+    func prettyPrinted() -> String {
+        let encoder = JSONEncoder.codexBridge
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+        guard let data = try? encoder.encode(self) else { return "" }
+        return String(decoding: data, as: UTF8.self)
+    }
 }
 
 enum CodexBridgeEventName: String, Codable, Sendable {
@@ -159,7 +166,7 @@ struct CodexBridgeEvent: Codable, Sendable {
         )
     }
 
-    func activityEvent(sequence: Int) -> CodexActivityEvent? {
+    func activityEvent(sequence: Int, approvalTimeout: TimeInterval = 30) -> CodexActivityEvent? {
         let kind: CodexActivityEvent.Kind
         switch event {
         case .sessionStart: kind = .sessionStarted
@@ -167,7 +174,7 @@ struct CodexBridgeEvent: Codable, Sendable {
         case .approvalRequested:
             kind = .approvalRequested(
                 id: requestId,
-                expiresAt: timestamp.addingTimeInterval(30)
+                expiresAt: timestamp.addingTimeInterval(approvalTimeout)
             )
         case .subagentStarted:
             guard let agentId, !agentId.isEmpty else { return nil }

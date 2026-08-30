@@ -69,9 +69,12 @@ final class CodexActivityManager: ObservableObject {
     )
     @Published private(set) var bridgeError: String?
     @Published private(set) var hookStatus = CodexHookInstaller().status()
+    @Published private(set) var approvalRequests: [CodexApprovalRequest] = []
 
     private var reducer = CodexActivityReducer()
     private var nextLocalSequence = 0
+    private var approvalContinuations: [UUID: CheckedContinuation<CodexApprovalDecision?, Never>] = [:]
+    private var approvalExpirationTasks: [UUID: Task<Void, Never>] = [:]
     private let hookInstaller = CodexHookInstaller()
     private lazy var localObserver = CodexLocalSessionObserver { [weak self] event in
         Task { @MainActor in self?.receive(event) }
@@ -106,6 +109,9 @@ final class CodexActivityManager: ObservableObject {
     }
 
     func stop() {
+        for requestID in Array(approvalContinuations.keys) {
+            resolveApproval(id: requestID, decision: .deferDecision)
+        }
         refreshTask?.cancel()
         refreshTask = nil
         localObserver.stop()
@@ -128,16 +134,42 @@ final class CodexActivityManager: ObservableObject {
         hookStatus = hookInstaller.status()
     }
 
-    private func receive(_ bridgeEvent: CodexBridgeEvent) -> CodexApprovalDecision? {
+    var currentApproval: CodexApprovalRequest? {
+        approvalRequests.min {
+            ($0.requestedAt, $0.id.uuidString) < ($1.requestedAt, $1.id.uuidString)
+        }
+    }
+
+    @discardableResult
+    func resolveApproval(id: UUID, decision: CodexApprovalDecision) -> Bool {
+        guard let continuation = approvalContinuations.removeValue(forKey: id) else { return false }
+        approvalExpirationTasks.removeValue(forKey: id)?.cancel()
+        approvalRequests.removeAll { $0.id == id }
+        _ = reducer.resolveApproval(id: id)
+        snapshot = reducer.snapshot()
+        continuation.resume(returning: decision)
+        return true
+    }
+
+    private func receive(_ bridgeEvent: CodexBridgeEvent) async -> CodexApprovalDecision? {
         guard bridgeEvent.event != .ping else { return nil }
         guard let rawSequence = bridgeEvent.deliverySequence,
               let sequence = Int(exactly: rawSequence),
-              let event = bridgeEvent.activityEvent(sequence: sequence),
+              let event = bridgeEvent.activityEvent(sequence: sequence, approvalTimeout: 30),
               reducer.receive(event)
         else { return bridgeEvent.event == .approvalRequested ? .deferDecision : nil }
         snapshot = reducer.snapshot()
-        // Approval UI is added in the next phase; deferring preserves Codex's native prompt.
-        return bridgeEvent.event == .approvalRequested ? .deferDecision : nil
+        guard bridgeEvent.event == .approvalRequested else { return nil }
+        let request = CodexApprovalRequest(bridgeEvent: bridgeEvent, expiresAt: bridgeEvent.timestamp.addingTimeInterval(30))
+        approvalRequests.append(request)
+        return await withCheckedContinuation { continuation in
+            approvalContinuations[request.id] = continuation
+            approvalExpirationTasks[request.id] = Task { [weak self] in
+                try? await Task.sleep(for: .seconds(max(0, request.expiresAt.timeIntervalSinceNow)))
+                guard !Task.isCancelled else { return }
+                self?.resolveApproval(id: request.id, decision: .deferDecision)
+            }
+        }
     }
 
     private func receive(_ observedEvent: CodexObservedLifecycleEvent) {

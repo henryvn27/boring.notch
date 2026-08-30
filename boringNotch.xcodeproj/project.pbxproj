@@ -19,6 +19,7 @@
 		CDAA00152F60000100000001 /* CodexLifecycleLedger.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDAA00042F60000100000001 /* CodexLifecycleLedger.swift */; };
 		CDAA00162F60000100000001 /* CodexLifecycleLedger.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDAA00042F60000100000001 /* CodexLifecycleLedger.swift */; };
 		CDAA00172F60000100000001 /* CodexLocalSessionObserver.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDAA00052F60000100000001 /* CodexLocalSessionObserver.swift */; };
+		CDAA00182F60000100000001 /* CodexActivityViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDAA00062F60000100000001 /* CodexActivityViews.swift */; };
 		1100290C2E847E2800035A57 /* NSItemProvider+LoadHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100290B2E847E2800035A57 /* NSItemProvider+LoadHelpers.swift */; };
 		110029272E84FD4C00035A57 /* TemporaryFileStorageService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110029262E84FD4C00035A57 /* TemporaryFileStorageService.swift */; };
 		1100292A2E8691B400035A57 /* FileShareView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110029292E8691B400035A57 /* FileShareView.swift */; };
@@ -226,6 +227,7 @@
 		CDAA00032F60000100000001 /* CodexHookInstaller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = boringNotch/Codex/CodexHookInstaller.swift; sourceTree = "<group>"; };
 		CDAA00042F60000100000001 /* CodexLifecycleLedger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexLifecycleLedger.swift; sourceTree = "<group>"; };
 		CDAA00052F60000100000001 /* CodexLocalSessionObserver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = boringNotch/Codex/CodexLocalSessionObserver.swift; sourceTree = "<group>"; };
+		CDAA00062F60000100000001 /* CodexActivityViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = boringNotch/Codex/CodexActivityViews.swift; sourceTree = "<group>"; };
 		1100290B2E847E2800035A57 /* NSItemProvider+LoadHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "NSItemProvider+LoadHelpers.swift"; sourceTree = "<group>"; };
 		110029262E84FD4C00035A57 /* TemporaryFileStorageService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TemporaryFileStorageService.swift; sourceTree = "<group>"; };
 		110029292E8691B400035A57 /* FileShareView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileShareView.swift; sourceTree = "<group>"; };
@@ -687,6 +689,7 @@
 				56ADEC24744C402BA32C50A3 /* CodexActivityCore */,
 				CDAA00032F60000100000001 /* CodexHookInstaller.swift */,
 				CDAA00052F60000100000001 /* CodexLocalSessionObserver.swift */,
+				CDAA00062F60000100000001 /* CodexActivityViews.swift */,
 				112B0EB62E30DD0F00562D6C /* mediaremote-adapter */,
 				14CEF4142C5CAED300855D72 /* boringNotch */,
 				11F748502EC9AABA00F841DB /* BoringNotchXPCHelper */,
@@ -1100,6 +1103,7 @@
 				CDAA00142F60000100000001 /* CodexHookInstaller.swift in Sources */,
 				CDAA00152F60000100000001 /* CodexLifecycleLedger.swift in Sources */,
 				CDAA00172F60000100000001 /* CodexLocalSessionObserver.swift in Sources */,
+				CDAA00182F60000100000001 /* CodexActivityViews.swift in Sources */,
 				115C12EC2ED3D003009754CA /* OpenNotchOSD.swift in Sources */,
 				14C08BB92C8DE4B1000F8AA0 /* BoringCalendar.swift in Sources */,
 				5955950D2E900ED800C66711 /* ApplicationRelauncher.swift in Sources */,

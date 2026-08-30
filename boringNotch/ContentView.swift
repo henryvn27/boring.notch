@@ -23,6 +23,7 @@ struct ContentView: View {
     @ObservedObject var batteryModel = BatteryStatusViewModel.shared
     @ObservedObject var brightnessManager = BrightnessManager.shared
     @ObservedObject var volumeManager = VolumeManager.shared
+    @ObservedObject var codexActivity = CodexActivityManager.shared
     @State private var hoverTask: Task<Void, Never>?
     @State private var isHovering: Bool = false
     @State private var anyDropDebounceTask: Task<Void, Never>?
@@ -91,6 +92,8 @@ struct ContentView: View {
 
         if shouldDisplayNowPlayingFallbackNotice {
             chinWidth = nowPlayingFallbackNoticeWidth
+        } else if vm.notchState == .closed && !codexActivity.snapshot.activities.isEmpty {
+            chinWidth = max(chinWidth, vm.closedNotchSize.width + 238)
         } else if coordinator.expandingView.type == .battery && coordinator.expandingView.show
             && vm.notchState == .closed && Defaults[.showPowerStatusNotifications]
         {
@@ -360,6 +363,16 @@ struct ContentView: View {
                               gestureProgress: $gestureProgress
                           )
                               .transition(.opacity)
+                      } else if vm.notchState == .closed && !codexActivity.snapshot.activities.isEmpty && !vm.hideOnClosed {
+                          CodexCompactActivityView(
+                              notchWidth: vm.closedNotchSize.width,
+                              height: displayClosedNotchHeight
+                          ) {
+                              if vm.open() {
+                                  coordinator.currentView = .codex
+                              }
+                          }
+                          .transition(.opacity.combined(with: .scale(scale: 0.96, anchor: .top)))
                       } else if (!coordinator.expandingView.show || coordinator.expandingView.type == .music) && vm.notchState == .closed && (musicManager.isPlaying || !musicManager.isPlayerIdle) && coordinator.musicLiveActivityEnabled && !vm.hideOnClosed {
                           MusicLiveActivity()
                               .frame(alignment: .center)
@@ -434,6 +447,8 @@ struct ContentView: View {
                             dropInteraction: vm.dropInteraction,
                             animation: vm.animation
                         )
+                    case .codex:
+                        CodexActivityPanel()
                     }
                 }
                 .transition(

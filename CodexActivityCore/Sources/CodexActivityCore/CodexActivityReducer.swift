@@ -166,6 +166,17 @@ public struct CodexActivityReducer: Sendable {
         isDisconnected = true
     }
 
+    @discardableResult
+    public mutating func resolveApproval(id: UUID, now: Date = Date()) -> Bool {
+        guard let approval = approvals[id], approval.expiresAt > now else {
+            approvals.removeValue(forKey: id)
+            return false
+        }
+        approvals.removeValue(forKey: id)
+        lastAcceptedAt = now
+        return true
+    }
+
     public func snapshot(now: Date = Date()) -> ActivitySnapshot {
         guard !isDisconnected else {
             return ActivitySnapshot(
