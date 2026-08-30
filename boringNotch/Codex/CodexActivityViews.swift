@@ -12,6 +12,7 @@ struct CodexApprovalRequest: Identifiable, Equatable {
     let toolName: String
     let reason: String
     let operation: String
+    let workingDirectory: String?
     let requestedAt: Date
     let expiresAt: Date
 
@@ -25,6 +26,7 @@ struct CodexApprovalRequest: Identifiable, Equatable {
             limit: 180
         )
         operation = bridgeEvent.toolInput?.prettyPrinted() ?? reason
+        workingDirectory = bridgeEvent.cwd
         requestedAt = bridgeEvent.timestamp
         self.expiresAt = expiresAt
     }
@@ -407,6 +409,10 @@ struct CodexActivityPanel: View {
                 .buttonStyle(.plain)
                 .help("Copy operation")
                 .accessibilityLabel("Copy operation")
+                Button("Open Codex") {
+                    CodexActivationService.openCodex(fallbackDirectory: request.workingDirectory)
+                }
+                .buttonStyle(.bordered)
                 Spacer()
                 Button("Allow once") {
                     manager.resolveApproval(id: request.id, decision: .allow)

@@ -41,6 +41,9 @@
 		CDAA01152F60000100000001 /* ProviderAccountsManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDAA01052F60000100000001 /* ProviderAccountsManager.swift */; };
 		CDAA01162F60000100000001 /* ProviderAccountsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDAA01062F60000100000001 /* ProviderAccountsView.swift */; };
 		CDAA01172F60000100000001 /* Security.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CDAA01072F60000100000001 /* Security.framework */; };
+		CDAA01202F60000100000001 /* CodexHookTrustService.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDAA01302F60000100000001 /* CodexHookTrustService.swift */; };
+		CDAA01212F60000100000001 /* IntegrationSelfTestService.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDAA01312F60000100000001 /* IntegrationSelfTestService.swift */; };
+		CDAA01222F60000100000001 /* CodexActivationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDAA01322F60000100000001 /* CodexActivationService.swift */; };
 		CDAA00F12F60000100000001 /* libsqlite3.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = CDAA00F02F60000100000001 /* libsqlite3.tbd */; };
 		1100290C2E847E2800035A57 /* NSItemProvider+LoadHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100290B2E847E2800035A57 /* NSItemProvider+LoadHelpers.swift */; };
 		110029272E84FD4C00035A57 /* TemporaryFileStorageService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110029262E84FD4C00035A57 /* TemporaryFileStorageService.swift */; };
@@ -271,6 +274,9 @@
 		CDAA01052F60000100000001 /* ProviderAccountsManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = boringNotch/Codex/ProviderAccountsManager.swift; sourceTree = "<group>"; };
 		CDAA01062F60000100000001 /* ProviderAccountsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = boringNotch/Codex/ProviderAccountsView.swift; sourceTree = "<group>"; };
 		CDAA01072F60000100000001 /* Security.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Security.framework; path = System/Library/Frameworks/Security.framework; sourceTree = SDKROOT; };
+		CDAA01302F60000100000001 /* CodexHookTrustService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = boringNotch/Codex/CodexHookTrustService.swift; sourceTree = "<group>"; };
+		CDAA01312F60000100000001 /* IntegrationSelfTestService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = boringNotch/Codex/IntegrationSelfTestService.swift; sourceTree = "<group>"; };
+		CDAA01322F60000100000001 /* CodexActivationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = boringNotch/Codex/CodexActivationService.swift; sourceTree = "<group>"; };
 		CDAA00F02F60000100000001 /* libsqlite3.tbd */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.text-based-dylib-definition; path = usr/lib/libsqlite3.tbd; sourceTree = SDKROOT; };
 		1100290B2E847E2800035A57 /* NSItemProvider+LoadHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "NSItemProvider+LoadHelpers.swift"; sourceTree = "<group>"; };
 		110029262E84FD4C00035A57 /* TemporaryFileStorageService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TemporaryFileStorageService.swift; sourceTree = "<group>"; };
@@ -756,6 +762,9 @@
 				CDAA01042F60000100000001 /* ProviderCostService.swift */,
 				CDAA01052F60000100000001 /* ProviderAccountsManager.swift */,
 				CDAA01062F60000100000001 /* ProviderAccountsView.swift */,
+				CDAA01302F60000100000001 /* CodexHookTrustService.swift */,
+				CDAA01312F60000100000001 /* IntegrationSelfTestService.swift */,
+				CDAA01322F60000100000001 /* CodexActivationService.swift */,
 				112B0EB62E30DD0F00562D6C /* mediaremote-adapter */,
 				14CEF4142C5CAED300855D72 /* boringNotch */,
 				11F748502EC9AABA00F841DB /* BoringNotchXPCHelper */,
@@ -1192,6 +1201,9 @@
 				CDAA01142F60000100000001 /* ProviderCostService.swift in Sources */,
 				CDAA01152F60000100000001 /* ProviderAccountsManager.swift in Sources */,
 				CDAA01162F60000100000001 /* ProviderAccountsView.swift in Sources */,
+				CDAA01202F60000100000001 /* CodexHookTrustService.swift in Sources */,
+				CDAA01212F60000100000001 /* IntegrationSelfTestService.swift in Sources */,
+				CDAA01222F60000100000001 /* CodexActivationService.swift in Sources */,
 				115C12EC2ED3D003009754CA /* OpenNotchOSD.swift in Sources */,
 				14C08BB92C8DE4B1000F8AA0 /* BoringCalendar.swift in Sources */,
 				5955950D2E900ED800C66711 /* ApplicationRelauncher.swift in Sources */,

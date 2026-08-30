@@ -25,6 +25,8 @@ swiftc \
   "$root/../boringNotch/Codex/CredentialSecretStore.swift" \
   "$root/../boringNotch/Codex/ProviderAccountStore.swift" \
   "$root/../boringNotch/Codex/ProviderCostService.swift" \
+  "$root/../boringNotch/Codex/CodexHookTrustService.swift" \
+  "$root/../boringNotch/Codex/IntegrationSelfTestService.swift" \
   "$root/Tests/CodexActivityCoreTests/CodexBridgeServerTests.swift" \
   "$root/Tests/CodexActivityCoreTests/CodexHookInstallerTests.swift" \
   "$root/Tests/CodexActivityCoreTests/CodexLifecycleTests.swift" \
@@ -32,6 +34,7 @@ swiftc \
   "$root/Tests/CodexActivityCoreTests/CapsLockSignalServiceTests.swift" \
   "$root/Tests/CodexActivityCoreTests/CodexCostServiceTests.swift" \
   "$root/Tests/CodexActivityCoreTests/ProviderAccountTests.swift" \
+  "$root/Tests/CodexActivityCoreTests/CodexIntegrationServiceTests.swift" \
   "$root/Tests/CodexActivityCoreTests/CodexActivityReducerTests.swift" \
   -framework AppKit \
   -framework CoreServices \
