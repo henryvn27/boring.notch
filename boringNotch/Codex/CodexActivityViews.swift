@@ -2,6 +2,7 @@
 // Copyright (c) 2026 Cowlick contributors.
 
 import AppKit
+import Defaults
 import SwiftUI
 
 struct CodexApprovalRequest: Identifiable, Equatable {
@@ -135,6 +136,7 @@ private struct CodexCompactButtonStyle: ButtonStyle {
 struct CodexActivityPanel: View {
     @ObservedObject private var manager = CodexActivityManager.shared
     @ObservedObject private var usage = CodexUsageManager.shared
+    @Default(.codexShowQuota) private var showQuota
     @State private var integrationError: String?
 
     var body: some View {
@@ -192,7 +194,7 @@ struct CodexActivityPanel: View {
                 }
             }
 
-            if usage.snapshot != nil || usage.isRefreshing {
+            if showQuota && (usage.snapshot != nil || usage.isRefreshing) {
                 Divider().overlay(.white.opacity(0.12))
                 usageView
             }

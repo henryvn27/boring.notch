@@ -1,6 +1,7 @@
 // Portions adapted from Cowlick (MIT).
 // Copyright (c) 2026 Cowlick contributors.
 
+import Combine
 import Foundation
 
 @MainActor
