@@ -33,6 +33,14 @@
 		CDAA00232F60000100000001 /* LocalCodexCostService.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDAA02022F60000100000001 /* LocalCodexCostService.swift */; };
 		CDAA00242F60000100000001 /* ResetForecastService.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDAA02032F60000100000001 /* ResetForecastService.swift */; };
 		CDAA00252F60000100000001 /* CodexCostManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDAA02042F60000100000001 /* CodexCostManager.swift */; };
+		CDAA01102F60000100000001 /* ProviderModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDAA01002F60000100000001 /* ProviderModels.swift */; };
+		CDAA01112F60000100000001 /* ProviderBillingModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDAA01012F60000100000001 /* ProviderBillingModels.swift */; };
+		CDAA01122F60000100000001 /* CredentialSecretStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDAA01022F60000100000001 /* CredentialSecretStore.swift */; };
+		CDAA01132F60000100000001 /* ProviderAccountStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDAA01032F60000100000001 /* ProviderAccountStore.swift */; };
+		CDAA01142F60000100000001 /* ProviderCostService.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDAA01042F60000100000001 /* ProviderCostService.swift */; };
+		CDAA01152F60000100000001 /* ProviderAccountsManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDAA01052F60000100000001 /* ProviderAccountsManager.swift */; };
+		CDAA01162F60000100000001 /* ProviderAccountsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDAA01062F60000100000001 /* ProviderAccountsView.swift */; };
+		CDAA01172F60000100000001 /* Security.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CDAA01072F60000100000001 /* Security.framework */; };
 		CDAA00F12F60000100000001 /* libsqlite3.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = CDAA00F02F60000100000001 /* libsqlite3.tbd */; };
 		1100290C2E847E2800035A57 /* NSItemProvider+LoadHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100290B2E847E2800035A57 /* NSItemProvider+LoadHelpers.swift */; };
 		110029272E84FD4C00035A57 /* TemporaryFileStorageService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110029262E84FD4C00035A57 /* TemporaryFileStorageService.swift */; };
@@ -255,6 +263,14 @@
 		CDAA02022F60000100000001 /* LocalCodexCostService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = boringNotch/Codex/LocalCodexCostService.swift; sourceTree = "<group>"; };
 		CDAA02032F60000100000001 /* ResetForecastService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = boringNotch/Codex/ResetForecastService.swift; sourceTree = "<group>"; };
 		CDAA02042F60000100000001 /* CodexCostManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = boringNotch/Codex/CodexCostManager.swift; sourceTree = "<group>"; };
+		CDAA01002F60000100000001 /* ProviderModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = boringNotch/Codex/ProviderModels.swift; sourceTree = "<group>"; };
+		CDAA01012F60000100000001 /* ProviderBillingModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = boringNotch/Codex/ProviderBillingModels.swift; sourceTree = "<group>"; };
+		CDAA01022F60000100000001 /* CredentialSecretStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = boringNotch/Codex/CredentialSecretStore.swift; sourceTree = "<group>"; };
+		CDAA01032F60000100000001 /* ProviderAccountStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = boringNotch/Codex/ProviderAccountStore.swift; sourceTree = "<group>"; };
+		CDAA01042F60000100000001 /* ProviderCostService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = boringNotch/Codex/ProviderCostService.swift; sourceTree = "<group>"; };
+		CDAA01052F60000100000001 /* ProviderAccountsManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = boringNotch/Codex/ProviderAccountsManager.swift; sourceTree = "<group>"; };
+		CDAA01062F60000100000001 /* ProviderAccountsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = boringNotch/Codex/ProviderAccountsView.swift; sourceTree = "<group>"; };
+		CDAA01072F60000100000001 /* Security.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Security.framework; path = System/Library/Frameworks/Security.framework; sourceTree = SDKROOT; };
 		CDAA00F02F60000100000001 /* libsqlite3.tbd */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.text-based-dylib-definition; path = usr/lib/libsqlite3.tbd; sourceTree = SDKROOT; };
 		1100290B2E847E2800035A57 /* NSItemProvider+LoadHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "NSItemProvider+LoadHelpers.swift"; sourceTree = "<group>"; };
 		110029262E84FD4C00035A57 /* TemporaryFileStorageService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TemporaryFileStorageService.swift; sourceTree = "<group>"; };
@@ -436,6 +452,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				CDAA00F12F60000100000001 /* libsqlite3.tbd in Frameworks */,
+				CDAA01172F60000100000001 /* Security.framework in Frameworks */,
 				111BEA5F2ED07A340079DD4E /* MacroVisionKit in Frameworks */,
 				9A987A102C73CA8D005CA465 /* Collections in Frameworks */,
 				1194E8852EA57D23009C82D6 /* SkyLightWindow in Frameworks */,
@@ -732,6 +749,13 @@
 				CDAA02022F60000100000001 /* LocalCodexCostService.swift */,
 				CDAA02032F60000100000001 /* ResetForecastService.swift */,
 				CDAA02042F60000100000001 /* CodexCostManager.swift */,
+				CDAA01002F60000100000001 /* ProviderModels.swift */,
+				CDAA01012F60000100000001 /* ProviderBillingModels.swift */,
+				CDAA01022F60000100000001 /* CredentialSecretStore.swift */,
+				CDAA01032F60000100000001 /* ProviderAccountStore.swift */,
+				CDAA01042F60000100000001 /* ProviderCostService.swift */,
+				CDAA01052F60000100000001 /* ProviderAccountsManager.swift */,
+				CDAA01062F60000100000001 /* ProviderAccountsView.swift */,
 				112B0EB62E30DD0F00562D6C /* mediaremote-adapter */,
 				14CEF4142C5CAED300855D72 /* boringNotch */,
 				11F748502EC9AABA00F841DB /* BoringNotchXPCHelper */,
@@ -807,6 +831,7 @@
 				14D031EF2C689DC00096E6A1 /* ApplicationServices.framework */,
 				14D031ED2C689DB70096E6A1 /* IOKit.framework */,
 				CDAA00F02F60000100000001 /* libsqlite3.tbd */,
+				CDAA01072F60000100000001 /* Security.framework */,
 				112B0EBA2E30DD5000562D6C /* MediaRemoteAdapter.framework */,
 			);
 			name = Frameworks;
@@ -1160,6 +1185,13 @@
 				CDAA00232F60000100000001 /* LocalCodexCostService.swift in Sources */,
 				CDAA00242F60000100000001 /* ResetForecastService.swift in Sources */,
 				CDAA00252F60000100000001 /* CodexCostManager.swift in Sources */,
+				CDAA01102F60000100000001 /* ProviderModels.swift in Sources */,
+				CDAA01112F60000100000001 /* ProviderBillingModels.swift in Sources */,
+				CDAA01122F60000100000001 /* CredentialSecretStore.swift in Sources */,
+				CDAA01132F60000100000001 /* ProviderAccountStore.swift in Sources */,
+				CDAA01142F60000100000001 /* ProviderCostService.swift in Sources */,
+				CDAA01152F60000100000001 /* ProviderAccountsManager.swift in Sources */,
+				CDAA01162F60000100000001 /* ProviderAccountsView.swift in Sources */,
 				115C12EC2ED3D003009754CA /* OpenNotchOSD.swift in Sources */,
 				14C08BB92C8DE4B1000F8AA0 /* BoringCalendar.swift in Sources */,
 				5955950D2E900ED800C66711 /* ApplicationRelauncher.swift in Sources */,

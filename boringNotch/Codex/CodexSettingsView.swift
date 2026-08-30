@@ -156,6 +156,8 @@ struct CodexSettingsView: View {
                 Text("The local number is an API-price equivalent, not a subscription bill. It reads token counters only and never retains prompt or tool content. The reset forecast is opt-in network data from an attributed third party.")
             }
 
+            ProviderAccountsSettingsSection()
+
             Section {
                 TextEditor(text: .constant(diagnostics))
                     .font(.system(size: 10.5, design: .monospaced))
