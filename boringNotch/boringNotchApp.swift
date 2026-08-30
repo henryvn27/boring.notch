@@ -58,6 +58,150 @@ enum SoftwareUpdateStore {
 }
 
 @MainActor
+final class CodexActivityManager: ObservableObject {
+    static let shared = CodexActivityManager()
+
+    @Published private(set) var snapshot = ActivitySnapshot(
+        generatedAt: Date(),
+        availability: .disconnected,
+        activities: [],
+        pendingApproval: nil
+    )
+    @Published private(set) var bridgeError: String?
+    @Published private(set) var hookStatus = CodexHookInstaller().status()
+    @Published private(set) var approvalRequests: [CodexApprovalRequest] = []
+
+    private var reducer = CodexActivityReducer()
+    private var nextLocalSequence = 0
+    private var approvalContinuations: [UUID: CheckedContinuation<CodexApprovalDecision?, Never>] = [:]
+    private var approvalExpirationTasks: [UUID: Task<Void, Never>] = [:]
+    private let hookInstaller = CodexHookInstaller()
+    private lazy var localObserver = CodexLocalSessionObserver { [weak self] event in
+        Task { @MainActor in self?.receive(event) }
+    }
+    private var refreshTask: Task<Void, Never>?
+    private lazy var server = CodexBridgeServer { [weak self] event in
+        await self?.receive(event) ?? .deferDecision
+    }
+
+    func start() {
+        guard refreshTask == nil else { return }
+        do {
+            try hookInstaller.refreshInstalledHelperIfNeeded()
+            _ = try hookInstaller.repairExistingIntegrationIfNeeded(intentionallyRemoved: false)
+            hookStatus = hookInstaller.status()
+            try server.start()
+            recoverRecentSessions()
+            localObserver.start()
+            bridgeError = nil
+            refreshTask = Task { [weak self] in
+                while !Task.isCancelled {
+                    try? await Task.sleep(for: .seconds(1))
+                    guard let self else { return }
+                    snapshot = reducer.snapshot()
+                }
+            }
+        } catch {
+            bridgeError = error.localizedDescription
+            reducer.disconnect()
+            snapshot = reducer.snapshot()
+        }
+    }
+
+    func stop() {
+        for requestID in Array(approvalContinuations.keys) {
+            resolveApproval(id: requestID, decision: .deferDecision)
+        }
+        refreshTask?.cancel()
+        refreshTask = nil
+        localObserver.stop()
+        server.stop()
+        reducer.disconnect()
+        snapshot = reducer.snapshot()
+    }
+
+    func installCodexIntegration() throws {
+        try hookInstaller.installOrRepair()
+        hookStatus = hookInstaller.status()
+    }
+
+    func removeCodexIntegration() throws {
+        try hookInstaller.removeIntegration()
+        hookStatus = hookInstaller.status()
+    }
+
+    func refreshCodexIntegrationStatus() {
+        hookStatus = hookInstaller.status()
+    }
+
+    var currentApproval: CodexApprovalRequest? {
+        approvalRequests.min {
+            ($0.requestedAt, $0.id.uuidString) < ($1.requestedAt, $1.id.uuidString)
+        }
+    }
+
+    @discardableResult
+    func resolveApproval(id: UUID, decision: CodexApprovalDecision) -> Bool {
+        guard let continuation = approvalContinuations.removeValue(forKey: id) else { return false }
+        approvalExpirationTasks.removeValue(forKey: id)?.cancel()
+        approvalRequests.removeAll { $0.id == id }
+        _ = reducer.resolveApproval(id: id)
+        snapshot = reducer.snapshot()
+        continuation.resume(returning: decision)
+        return true
+    }
+
+    private func receive(_ bridgeEvent: CodexBridgeEvent) async -> CodexApprovalDecision? {
+        guard bridgeEvent.event != .ping else { return nil }
+        guard let rawSequence = bridgeEvent.deliverySequence,
+              let sequence = Int(exactly: rawSequence),
+              let event = bridgeEvent.activityEvent(sequence: sequence, approvalTimeout: 30),
+              reducer.receive(event)
+        else { return bridgeEvent.event == .approvalRequested ? .deferDecision : nil }
+        snapshot = reducer.snapshot()
+        guard bridgeEvent.event == .approvalRequested else { return nil }
+        let request = CodexApprovalRequest(bridgeEvent: bridgeEvent, expiresAt: bridgeEvent.timestamp.addingTimeInterval(30))
+        approvalRequests.append(request)
+        return await withCheckedContinuation { continuation in
+            approvalContinuations[request.id] = continuation
+            approvalExpirationTasks[request.id] = Task { [weak self] in
+                try? await Task.sleep(for: .seconds(max(0, request.expiresAt.timeIntervalSinceNow)))
+                guard !Task.isCancelled else { return }
+                self?.resolveApproval(id: request.id, decision: .deferDecision)
+            }
+        }
+    }
+
+    private func receive(_ observedEvent: CodexObservedLifecycleEvent) {
+        nextLocalSequence += 1
+        guard let event = observedEvent.activityEvent(sequence: nextLocalSequence),
+              reducer.receive(event)
+        else { return }
+        snapshot = reducer.snapshot()
+    }
+
+    private func recoverRecentSessions(now: Date = Date()) {
+        let cutoff = now.addingTimeInterval(-CodexLocalSessionObserver.staleWorkingInterval)
+        for session in CodexLifecycleLedger.load(now: now) where session.updatedAt >= cutoff {
+            nextLocalSequence += 1
+            _ = reducer.receive(
+                CodexActivityEvent(
+                    origin: .localObservation,
+                    sequence: nextLocalSequence,
+                    timestamp: session.updatedAt,
+                    sessionID: session.sessionID,
+                    turnID: session.turnID,
+                    cwd: session.workingDirectory,
+                    kind: .working
+                ),
+                now: now
+            )
+        }
+        snapshot = reducer.snapshot(now: now)
+    }
+}
+
+@MainActor
 final class BoringSparkleUpdaterDelegate: NSObject, SPUUpdaterDelegate {
     func updaterShouldPromptForPermissionToCheck(forUpdates updater: SPUUpdater) -> Bool {
         false
@@ -89,6 +233,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        CodexActivityManager.shared.stop()
+
         // Flush debounced shelf persistence to avoid losing recent changes
         ShelfStateViewModel.shared.flushSync()
 
@@ -311,6 +457,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+
+        CodexActivityManager.shared.start()
 
         NotificationCenter.default.addObserver(
             self,

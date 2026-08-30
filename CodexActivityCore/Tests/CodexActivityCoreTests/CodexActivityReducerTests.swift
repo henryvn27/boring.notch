@@ -11,7 +11,10 @@ struct CodexActivityReducerTests {
         try staleAndDisconnectedSnapshotsExposeNoActivity()
         try serializedSnapshotIsAllowlistedAndStripsSensitivePathData()
         try rejectsReplayedOlderAndImplausiblyTimedEvents()
-        print("CodexActivityCore: 6 tests passed")
+        try CodexBridgeServerTests.run()
+        try CodexHookInstallerTests.run()
+        try CodexLifecycleTests.run()
+        print("CodexActivityCore: 14 tests passed")
     }
 
     private static func orderingUsesStateRecencyThenStableSessionID() throws {
@@ -59,6 +62,8 @@ struct CodexActivityReducerTests {
         ), now: now))
         try expect(reducer.snapshot(now: now).pendingApproval?.id == approvalID)
         try expect(reducer.snapshot(now: now).activities.first?.state == .approvalRequired)
+        try expect(reducer.resolveApproval(id: approvalID, now: now))
+        try expect(reducer.snapshot(now: now).pendingApproval?.id != approvalID)
     }
 
     private static func exactTurnChildTombstonesPreventDelayedResurrection() throws {

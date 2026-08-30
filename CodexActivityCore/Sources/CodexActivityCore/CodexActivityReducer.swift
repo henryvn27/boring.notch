@@ -70,7 +70,7 @@ public struct CodexActivityReducer: Sendable {
     private var lastAcceptedAt: Date?
     private var isDisconnected = true
 
-    public init(staleAfter: TimeInterval = 30) {
+    public init(staleAfter: TimeInterval = 10 * 60) {
         self.staleAfter = staleAfter
     }
 
@@ -164,6 +164,17 @@ public struct CodexActivityReducer: Sendable {
         childTombstones.removeAll()
         lastAcceptedAt = date
         isDisconnected = true
+    }
+
+    @discardableResult
+    public mutating func resolveApproval(id: UUID, now: Date = Date()) -> Bool {
+        guard let approval = approvals[id], approval.expiresAt > now else {
+            approvals.removeValue(forKey: id)
+            return false
+        }
+        approvals.removeValue(forKey: id)
+        lastAcceptedAt = now
+        return true
     }
 
     public func snapshot(now: Date = Date()) -> ActivitySnapshot {
