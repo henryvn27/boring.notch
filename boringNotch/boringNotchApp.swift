@@ -97,6 +97,7 @@ final class CodexActivityManager: ObservableObject {
             recoverRecentSessions()
             localObserver.start()
             CodexUsageManager.shared.start()
+            CodexCostManager.shared.start()
             bridgeError = nil
             refreshTask = Task { [weak self] in
                 while !Task.isCancelled {
@@ -120,6 +121,7 @@ final class CodexActivityManager: ObservableObject {
         refreshTask = nil
         localObserver.stop()
         CodexUsageManager.shared.stop()
+        CodexCostManager.shared.stop()
         server.stop()
         Task { await capsLockService.cancelAndRestore() }
         reducer.disconnect()

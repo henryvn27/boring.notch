@@ -16,15 +16,21 @@ swiftc \
   "$root/../boringNotch/Codex/CodexUsageService.swift" \
   "$root/../boringNotch/Codex/JSONRPCResponseCursor.swift" \
   "$root/../boringNotch/Codex/CapsLockSignalService.swift" \
+  "$root/../boringNotch/Codex/CodexCostModels.swift" \
+  "$root/../boringNotch/Codex/CodexPriorityTierReader.swift" \
+  "$root/../boringNotch/Codex/LocalCodexCostService.swift" \
+  "$root/../boringNotch/Codex/ResetForecastService.swift" \
   "$root/Tests/CodexActivityCoreTests/CodexBridgeServerTests.swift" \
   "$root/Tests/CodexActivityCoreTests/CodexHookInstallerTests.swift" \
   "$root/Tests/CodexActivityCoreTests/CodexLifecycleTests.swift" \
   "$root/Tests/CodexActivityCoreTests/CodexUsageServiceTests.swift" \
   "$root/Tests/CodexActivityCoreTests/CapsLockSignalServiceTests.swift" \
+  "$root/Tests/CodexActivityCoreTests/CodexCostServiceTests.swift" \
   "$root/Tests/CodexActivityCoreTests/CodexActivityReducerTests.swift" \
   -framework AppKit \
   -framework CoreServices \
   -framework IOKit \
+  -lsqlite3 \
   -o "$build_dir/CodexActivityCoreTests"
 
 "$build_dir/CodexActivityCoreTests"

@@ -28,6 +28,12 @@
 		CDAA001E2F60000100000001 /* JSONRPCResponseCursor.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDAA000C2F60000100000001 /* JSONRPCResponseCursor.swift */; };
 		CDAA001F2F60000100000001 /* CapsLockSignalService.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDAA000D2F60000100000001 /* CapsLockSignalService.swift */; };
 		CDAA00202F60000100000001 /* CodexSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDAA000E2F60000100000001 /* CodexSettingsView.swift */; };
+		CDAA00212F60000100000001 /* CodexCostModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDAA02002F60000100000001 /* CodexCostModels.swift */; };
+		CDAA00222F60000100000001 /* CodexPriorityTierReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDAA02012F60000100000001 /* CodexPriorityTierReader.swift */; };
+		CDAA00232F60000100000001 /* LocalCodexCostService.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDAA02022F60000100000001 /* LocalCodexCostService.swift */; };
+		CDAA00242F60000100000001 /* ResetForecastService.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDAA02032F60000100000001 /* ResetForecastService.swift */; };
+		CDAA00252F60000100000001 /* CodexCostManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDAA02042F60000100000001 /* CodexCostManager.swift */; };
+		CDAA00F12F60000100000001 /* libsqlite3.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = CDAA00F02F60000100000001 /* libsqlite3.tbd */; };
 		1100290C2E847E2800035A57 /* NSItemProvider+LoadHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100290B2E847E2800035A57 /* NSItemProvider+LoadHelpers.swift */; };
 		110029272E84FD4C00035A57 /* TemporaryFileStorageService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110029262E84FD4C00035A57 /* TemporaryFileStorageService.swift */; };
 		1100292A2E8691B400035A57 /* FileShareView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110029292E8691B400035A57 /* FileShareView.swift */; };
@@ -244,6 +250,12 @@
 		CDAA000C2F60000100000001 /* JSONRPCResponseCursor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = boringNotch/Codex/JSONRPCResponseCursor.swift; sourceTree = "<group>"; };
 		CDAA000D2F60000100000001 /* CapsLockSignalService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = boringNotch/Codex/CapsLockSignalService.swift; sourceTree = "<group>"; };
 		CDAA000E2F60000100000001 /* CodexSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = boringNotch/Codex/CodexSettingsView.swift; sourceTree = "<group>"; };
+		CDAA02002F60000100000001 /* CodexCostModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = boringNotch/Codex/CodexCostModels.swift; sourceTree = "<group>"; };
+		CDAA02012F60000100000001 /* CodexPriorityTierReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = boringNotch/Codex/CodexPriorityTierReader.swift; sourceTree = "<group>"; };
+		CDAA02022F60000100000001 /* LocalCodexCostService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = boringNotch/Codex/LocalCodexCostService.swift; sourceTree = "<group>"; };
+		CDAA02032F60000100000001 /* ResetForecastService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = boringNotch/Codex/ResetForecastService.swift; sourceTree = "<group>"; };
+		CDAA02042F60000100000001 /* CodexCostManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = boringNotch/Codex/CodexCostManager.swift; sourceTree = "<group>"; };
+		CDAA00F02F60000100000001 /* libsqlite3.tbd */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.text-based-dylib-definition; path = usr/lib/libsqlite3.tbd; sourceTree = SDKROOT; };
 		1100290B2E847E2800035A57 /* NSItemProvider+LoadHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "NSItemProvider+LoadHelpers.swift"; sourceTree = "<group>"; };
 		110029262E84FD4C00035A57 /* TemporaryFileStorageService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TemporaryFileStorageService.swift; sourceTree = "<group>"; };
 		110029292E8691B400035A57 /* FileShareView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileShareView.swift; sourceTree = "<group>"; };
@@ -423,6 +435,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				CDAA00F12F60000100000001 /* libsqlite3.tbd in Frameworks */,
 				111BEA5F2ED07A340079DD4E /* MacroVisionKit in Frameworks */,
 				9A987A102C73CA8D005CA465 /* Collections in Frameworks */,
 				1194E8852EA57D23009C82D6 /* SkyLightWindow in Frameworks */,
@@ -714,6 +727,11 @@
 				CDAA000C2F60000100000001 /* JSONRPCResponseCursor.swift */,
 				CDAA000D2F60000100000001 /* CapsLockSignalService.swift */,
 				CDAA000E2F60000100000001 /* CodexSettingsView.swift */,
+				CDAA02002F60000100000001 /* CodexCostModels.swift */,
+				CDAA02012F60000100000001 /* CodexPriorityTierReader.swift */,
+				CDAA02022F60000100000001 /* LocalCodexCostService.swift */,
+				CDAA02032F60000100000001 /* ResetForecastService.swift */,
+				CDAA02042F60000100000001 /* CodexCostManager.swift */,
 				112B0EB62E30DD0F00562D6C /* mediaremote-adapter */,
 				14CEF4142C5CAED300855D72 /* boringNotch */,
 				11F748502EC9AABA00F841DB /* BoringNotchXPCHelper */,
@@ -788,6 +806,7 @@
 			children = (
 				14D031EF2C689DC00096E6A1 /* ApplicationServices.framework */,
 				14D031ED2C689DB70096E6A1 /* IOKit.framework */,
+				CDAA00F02F60000100000001 /* libsqlite3.tbd */,
 				112B0EBA2E30DD5000562D6C /* MediaRemoteAdapter.framework */,
 			);
 			name = Frameworks;
@@ -1136,6 +1155,11 @@
 				CDAA001E2F60000100000001 /* JSONRPCResponseCursor.swift in Sources */,
 				CDAA001F2F60000100000001 /* CapsLockSignalService.swift in Sources */,
 				CDAA00202F60000100000001 /* CodexSettingsView.swift in Sources */,
+				CDAA00212F60000100000001 /* CodexCostModels.swift in Sources */,
+				CDAA00222F60000100000001 /* CodexPriorityTierReader.swift in Sources */,
+				CDAA00232F60000100000001 /* LocalCodexCostService.swift in Sources */,
+				CDAA00242F60000100000001 /* ResetForecastService.swift in Sources */,
+				CDAA00252F60000100000001 /* CodexCostManager.swift in Sources */,
 				115C12EC2ED3D003009754CA /* OpenNotchOSD.swift in Sources */,
 				14C08BB92C8DE4B1000F8AA0 /* BoringCalendar.swift in Sources */,
 				5955950D2E900ED800C66711 /* ApplicationRelauncher.swift in Sources */,
