@@ -19,6 +19,7 @@ enum OnboardingStep {
     case accessibilityPermission
     case musicPermission
     case softwareUpdatePermission
+    case codexIntegration
     case finished
 }
 
@@ -170,11 +171,17 @@ struct OnboardingView: View {
                     updater: updater,
                     onContinue: {
                         withAnimation(.easeInOut(duration: 0.6)) {
-                            BoringViewCoordinator.shared.firstLaunch = false
-                            step = .finished
+                            step = .codexIntegration
                         }
                     }
                 )
+                .transition(.opacity)
+
+            case .codexIntegration:
+                CodexIntegrationOnboardingView {
+                    BoringViewCoordinator.shared.firstLaunch = false
+                    withAnimation(.easeInOut(duration: 0.6)) { step = .finished }
+                }
                 .transition(.opacity)
 
             case .finished:
@@ -209,6 +216,59 @@ struct OnboardingView: View {
         return .accessibilityPermission
     }
     
+}
+
+private struct CodexIntegrationOnboardingView: View {
+    @ObservedObject private var manager = CodexActivityManager.shared
+    @State private var errorMessage: String?
+    let onContinue: () -> Void
+
+    var body: some View {
+        VStack(spacing: 24) {
+            Spacer()
+            Image(systemName: "terminal.fill")
+                .font(.system(size: 64))
+                .symbolRenderingMode(.hierarchical)
+                .foregroundColor(.effectiveAccent)
+            Text("See Codex in the Notch")
+                .font(.title)
+                .fontWeight(.semibold)
+            Text("boring.notch can show active Codex sessions, approvals, subagents, and official account quota. Integration stays on this Mac and preserves your other Codex hooks.")
+                .multilineTextAlignment(.center)
+                .foregroundColor(.secondary)
+                .padding(.horizontal, 34)
+            if let errorMessage {
+                Text(errorMessage)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+                    .padding(.horizontal, 34)
+            }
+            Spacer()
+            VStack(spacing: 10) {
+                Button("Install Codex Integration") {
+                    do {
+                        try manager.installCodexIntegration()
+                        errorMessage = nil
+                        onContinue()
+                    } catch {
+                        errorMessage = error.localizedDescription
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .keyboardShortcut(.defaultAction)
+                Button("Skip for Now", action: onContinue)
+                    .buttonStyle(.plain)
+            }
+            .padding(.bottom, 24)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(
+            VisualEffectView(material: .underWindowBackground, blendingMode: .behindWindow)
+                .ignoresSafeArea()
+        )
+        .accessibilityElement(children: .contain)
+    }
 }
 
 struct SoftwareUpdatePermissionView: View {

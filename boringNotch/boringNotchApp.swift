@@ -69,6 +69,8 @@ final class CodexActivityManager: ObservableObject {
     )
     @Published private(set) var bridgeError: String?
     @Published private(set) var hookStatus = CodexHookInstaller().status()
+    @Published private(set) var hookTrust = CodexHookTrustReport.notChecked
+    @Published private(set) var selfTestStatus = "Not run"
     @Published private(set) var approvalRequests: [CodexApprovalRequest] = []
 
     private var reducer = CodexActivityReducer()
@@ -93,6 +95,7 @@ final class CodexActivityManager: ObservableObject {
             try hookInstaller.refreshInstalledHelperIfNeeded()
             _ = try hookInstaller.repairExistingIntegrationIfNeeded(intentionallyRemoved: false)
             hookStatus = hookInstaller.status()
+            refreshHookTrust()
             try server.start()
             recoverRecentSessions()
             localObserver.start()
@@ -131,15 +134,35 @@ final class CodexActivityManager: ObservableObject {
     func installCodexIntegration() throws {
         try hookInstaller.installOrRepair()
         hookStatus = hookInstaller.status()
+        refreshHookTrust()
     }
 
     func removeCodexIntegration() throws {
         try hookInstaller.removeIntegration()
         hookStatus = hookInstaller.status()
+        hookTrust = .notChecked
+        selfTestStatus = "Not run"
     }
 
     func refreshCodexIntegrationStatus() {
         hookStatus = hookInstaller.status()
+    }
+
+    func refreshHookTrust() {
+        Task { [weak self] in
+            guard let self else { return }
+            hookTrust = await CodexHookTrustService().inspect()
+        }
+    }
+
+    func runIntegrationSelfTest() async {
+        do {
+            let helperURL = try hookInstaller.installedHelperURLForExplicitSelfTest()
+            try await IntegrationSelfTestService(helperURL: helperURL).ping()
+            selfTestStatus = "Passed"
+        } catch {
+            selfTestStatus = Self.sanitized(error.localizedDescription)
+        }
     }
 
     var localObservationStatus: String { localObserver.statusSummary }
@@ -177,6 +200,8 @@ final class CodexActivityManager: ObservableObject {
         Bridge protocol: \(CodexBridgeEvent.currentVersion)
         macOS: \(ProcessInfo.processInfo.operatingSystemVersionString)
         Hook status: \(Self.sanitized(hookStatus.summary))
+        Hook trust: \(Self.sanitized(hookTrust.state.summary))
+        Integration self-test: \(Self.sanitized(selfTestStatus))
         Bridge: \(bridgeStatus)
         Local observation: \(localObservationStatus)
         Codex executable: \(executableStatus)

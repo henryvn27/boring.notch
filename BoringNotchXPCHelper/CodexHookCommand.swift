@@ -83,9 +83,14 @@ enum CodexHookCommand {
         case "failed": eventName = .failed
         default: return 2
         }
+        let requestedSessionID = ProcessInfo.processInfo.environment["BORING_NOTCH_DEMO_SESSION_ID"]
+        let sessionID = requestedSessionID.flatMap { value in
+            let bounded = String(value.prefix(256))
+            return bounded.isEmpty ? nil : bounded
+        } ?? "boring-notch-demo"
         let event = CodexBridgeEvent(
             event: eventName,
-            sessionId: "boring-notch-demo",
+            sessionId: sessionID,
             turnId: "demo-turn",
             cwd: FileManager.default.currentDirectoryPath,
             prompt: name == "working" ? "Prepare the release verification" : nil,

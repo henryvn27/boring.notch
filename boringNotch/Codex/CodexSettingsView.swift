@@ -26,6 +26,8 @@ struct CodexSettingsView: View {
         Form {
             Section {
                 LabeledContent("Hooks", value: manager.hookStatus.summary)
+                LabeledContent("Hook trust", value: manager.hookTrust.state.summary)
+                LabeledContent("Self-test", value: manager.selfTestStatus)
                 LabeledContent("Local bridge", value: manager.bridgeStatus)
                 LabeledContent("Transcript observation", value: manager.localObservationStatus)
                 LabeledContent("Codex executable", value: manager.executableStatus)
@@ -53,8 +55,23 @@ struct CodexSettingsView: View {
                     Spacer()
                     Button("Refresh") {
                         manager.refreshCodexIntegrationStatus()
+                        manager.refreshHookTrust()
                         refreshDiagnostics()
                     }
+                }
+                HStack {
+                    Button("Check Trust") { manager.refreshHookTrust() }
+                    Button("Copy /hooks") {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString("/hooks", forType: .string)
+                    }
+                    Button("Run Self-Test") {
+                        Task {
+                            await manager.runIntegrationSelfTest()
+                            refreshDiagnostics()
+                        }
+                    }
+                    .disabled(!manager.hookStatus.helperInstalled)
                 }
             } header: {
                 Text("Integration")
@@ -182,6 +199,7 @@ struct CodexSettingsView: View {
         .accentColor(.effectiveAccent)
         .onAppear {
             manager.refreshCodexIntegrationStatus()
+            manager.refreshHookTrust()
             refreshDiagnostics()
         }
         .confirmationDialog("Remove boring.notch Codex integration?", isPresented: $confirmRemoval) {
