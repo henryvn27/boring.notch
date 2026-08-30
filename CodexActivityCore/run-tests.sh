@@ -1,0 +1,14 @@
+#!/bin/sh
+set -eu
+
+root=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+build_dir="$root/.build/direct"
+mkdir -p "$build_dir"
+
+swiftc \
+  "$root/Sources/CodexActivityCore/ActivitySnapshot.swift" \
+  "$root/Sources/CodexActivityCore/CodexActivityReducer.swift" \
+  "$root/Tests/CodexActivityCoreTests/CodexActivityReducerTests.swift" \
+  -o "$build_dir/CodexActivityCoreTests"
+
+"$build_dir/CodexActivityCoreTests"
