@@ -76,11 +76,14 @@ final class CodexActivityManager: ObservableObject {
     private var approvalContinuations: [UUID: CheckedContinuation<CodexApprovalDecision?, Never>] = [:]
     private var approvalExpirationTasks: [UUID: Task<Void, Never>] = [:]
     private let hookInstaller = CodexHookInstaller()
+    private let capsLockService: any CapsLockSignalService = NativeCapsLockSignalService()
     private lazy var localObserver = CodexLocalSessionObserver { [weak self] event in
         Task { @MainActor in self?.receive(event) }
     }
     private var refreshTask: Task<Void, Never>?
-    private lazy var server = CodexBridgeServer { [weak self] event in
+    private lazy var server = CodexBridgeServer(
+        approvalTimeout: Defaults[.codexApprovalTimeout]
+    ) { [weak self] event in
         await self?.receive(event) ?? .deferDecision
     }
 
@@ -118,6 +121,7 @@ final class CodexActivityManager: ObservableObject {
         localObserver.stop()
         CodexUsageManager.shared.stop()
         server.stop()
+        Task { await capsLockService.cancelAndRestore() }
         reducer.disconnect()
         snapshot = reducer.snapshot()
     }
@@ -136,6 +140,49 @@ final class CodexActivityManager: ObservableObject {
         hookStatus = hookInstaller.status()
     }
 
+    var localObservationStatus: String { localObserver.statusSummary }
+
+    var bridgeStatus: String {
+        FileManager.default.fileExists(atPath: CodexBridgePaths.applicationSupport.socketURL.path)
+            ? "Listening" : "Offline"
+    }
+
+    var executableStatus: String {
+        guard let url = try? CodexExecutableLocator().locate() else { return "Not found" }
+        return Self.displayPath(url.path)
+    }
+
+    func testCapsLockSignal() async -> CapsLockSupport {
+        await capsLockService.testSignal()
+    }
+
+    func disableCapsLockSignal() {
+        Task { await capsLockService.cancelAndRestore() }
+    }
+
+    func diagnosticsReport() -> String {
+        let usageStatus: String
+        if let usage = CodexUsageManager.shared.snapshot {
+            usageStatus = "\(usage.limits.count) official quota window(s), refreshed \(usage.fetchedAt.formatted(.iso8601))"
+        } else if let error = CodexUsageManager.shared.errorMessage {
+            usageStatus = Self.sanitized(error)
+        } else {
+            usageStatus = "Not loaded"
+        }
+        return """
+        boring.notch Codex Diagnostics
+        Version: \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "unknown")
+        Bridge protocol: \(CodexBridgeEvent.currentVersion)
+        macOS: \(ProcessInfo.processInfo.operatingSystemVersionString)
+        Hook status: \(Self.sanitized(hookStatus.summary))
+        Bridge: \(bridgeStatus)
+        Local observation: \(localObservationStatus)
+        Codex executable: \(executableStatus)
+        Codex quota: \(usageStatus)
+        Privacy: local activity snapshots exclude prompts, tool input, and full paths
+        """
+    }
+
     var currentApproval: CodexApprovalRequest? {
         approvalRequests.min {
             ($0.requestedAt, $0.id.uuidString) < ($1.requestedAt, $1.id.uuidString)
@@ -150,6 +197,9 @@ final class CodexActivityManager: ObservableObject {
         _ = reducer.resolveApproval(id: id)
         snapshot = reducer.snapshot()
         continuation.resume(returning: decision)
+        if approvalRequests.isEmpty {
+            Task { await capsLockService.cancelAndRestore() }
+        }
         return true
     }
 
@@ -157,14 +207,27 @@ final class CodexActivityManager: ObservableObject {
         guard bridgeEvent.event != .ping else { return nil }
         guard let rawSequence = bridgeEvent.deliverySequence,
               let sequence = Int(exactly: rawSequence),
-              let event = bridgeEvent.activityEvent(sequence: sequence, approvalTimeout: 30),
+              let event = bridgeEvent.activityEvent(
+                sequence: sequence,
+                approvalTimeout: Defaults[.codexApprovalTimeout]
+              ),
               reducer.receive(event)
         else { return bridgeEvent.event == .approvalRequested ? .deferDecision : nil }
         snapshot = reducer.snapshot()
         CodexUsageManager.shared.refreshAfterActivity()
+        signal(for: bridgeEvent.event)
         guard bridgeEvent.event == .approvalRequested else { return nil }
-        let request = CodexApprovalRequest(bridgeEvent: bridgeEvent, expiresAt: bridgeEvent.timestamp.addingTimeInterval(30))
+        let request = CodexApprovalRequest(
+            bridgeEvent: bridgeEvent,
+            expiresAt: bridgeEvent.timestamp.addingTimeInterval(Defaults[.codexApprovalTimeout])
+        )
         approvalRequests.append(request)
+        if Defaults[.codexAutoOpenApprovals] {
+            BoringViewCoordinator.shared.currentView = .codex
+            if let appDelegate = NSApp.delegate as? AppDelegate {
+                appDelegate.viewModels.values.forEach { _ = $0.open() }
+            }
+        }
         return await withCheckedContinuation { continuation in
             approvalContinuations[request.id] = continuation
             approvalExpirationTasks[request.id] = Task { [weak self] in
@@ -182,6 +245,11 @@ final class CodexActivityManager: ObservableObject {
         else { return }
         snapshot = reducer.snapshot()
         CodexUsageManager.shared.refreshAfterActivity()
+        switch observedEvent.kind {
+        case .completed: signal(for: .completed)
+        case .failed: signal(for: .failed)
+        case .working, .stale: break
+        }
     }
 
     private func recoverRecentSessions(now: Date = Date()) {
@@ -202,6 +270,34 @@ final class CodexActivityManager: ObservableObject {
             )
         }
         snapshot = reducer.snapshot(now: now)
+    }
+
+    private func signal(for event: CodexBridgeEventName) {
+        guard Defaults[.codexCapsLockSignals] else { return }
+        switch event {
+        case .approvalRequested:
+            Task { await capsLockService.setPersistentAttention(.approval) }
+        case .completed:
+            let flashes = Defaults[.codexCapsLockFlashCount]
+            Task { await capsLockService.start(.completion(flashes: flashes)) }
+        case .failed:
+            Task { await capsLockService.start(.failure) }
+        default:
+            break
+        }
+    }
+
+    private static func displayPath(_ path: String) -> String {
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        return path.hasPrefix(home + "/") ? "~" + String(path.dropFirst(home.count)) : path
+    }
+
+    private static func sanitized(_ value: String) -> String {
+        let withoutHome = displayPath(value)
+        let singleLine = withoutHome.unicodeScalars
+            .map { CharacterSet.controlCharacters.contains($0) ? " " : String($0) }
+            .joined()
+        return String(singleLine.prefix(240))
     }
 }
 

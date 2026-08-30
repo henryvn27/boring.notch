@@ -4,7 +4,7 @@ import Foundation
 struct CodexActivityReducerTests {
     private static let now = Date(timeIntervalSince1970: 1_800_000_000)
 
-    static func main() throws {
+    static func main() async throws {
         try orderingUsesStateRecencyThenStableSessionID()
         try onlyTrustedHooksCreateApprovalsAndDuplicateIDsAreRejected()
         try exactTurnChildTombstonesPreventDelayedResurrection()
@@ -15,7 +15,8 @@ struct CodexActivityReducerTests {
         try CodexHookInstallerTests.run()
         try CodexLifecycleTests.run()
         try CodexUsageServiceTests.run()
-        print("CodexActivityCore: 16 tests passed")
+        try await CapsLockSignalServiceTests.run()
+        print("CodexActivityCore: 18 tests passed")
     }
 
     private static func orderingUsesStateRecencyThenStableSessionID() throws {
