@@ -20,7 +20,7 @@ struct CodexSettingsView: View {
 
     var body: some View {
         Form {
-            Section("Integration") {
+            Section {
                 LabeledContent("Hooks", value: manager.hookStatus.summary)
                 LabeledContent("Local bridge", value: manager.bridgeStatus)
                 LabeledContent("Transcript observation", value: manager.localObservationStatus)
@@ -52,11 +52,13 @@ struct CodexSettingsView: View {
                         refreshDiagnostics()
                     }
                 }
+            } header: {
+                Text("Integration")
             } footer: {
                 Text("Install and repair preserve unrelated entries in ~/.codex/hooks.json. Removing only deletes boring.notch-owned hooks and helper files.")
             }
 
-            Section("Activity and approvals") {
+            Section {
                 Toggle("Open the Codex tab for approval requests", isOn: $autoOpenApprovals)
                 Toggle("Show account quota in the notch", isOn: $showQuota)
                 Picker("Approval timeout", selection: $approvalTimeout) {
@@ -71,11 +73,13 @@ struct CodexSettingsView: View {
                 if let error = usage.errorMessage {
                     Text(error).font(.caption).foregroundStyle(.secondary)
                 }
+            } header: {
+                Text("Activity and approvals")
             } footer: {
                 Text("Quota percentages describe account capacity only. boring.notch never treats them as task-completion estimates. Approval timeout changes apply after restarting the app.")
             }
 
-            Section("Caps Lock signal") {
+            Section {
                 Toggle("Enable Caps Lock signaling", isOn: $capsLockSignals)
                     .onChange(of: capsLockSignals) {
                         if !capsLockSignals { manager.disableCapsLockSignal() }
@@ -96,11 +100,13 @@ struct CodexSettingsView: View {
                     }
                 }
                 .disabled(!capsLockSignals)
+            } header: {
+                Text("Caps Lock signal")
             } footer: {
                 Text("Signals always restore the original Caps Lock state. Approval attention remains inverted only while an exact request is pending. macOS may require Input Monitoring or Accessibility permission.")
             }
 
-            Section("Sanitized diagnostics") {
+            Section {
                 TextEditor(text: .constant(diagnostics))
                     .font(.system(size: 10.5, design: .monospaced))
                     .frame(minHeight: 145)
@@ -114,6 +120,8 @@ struct CodexSettingsView: View {
                     Spacer()
                     Button("Refresh Diagnostics") { refreshDiagnostics() }
                 }
+            } header: {
+                Text("Sanitized diagnostics")
             } footer: {
                 Text("The report excludes prompts, tool input, approval details, full home paths, tokens, and account credentials. Software updates continue to use boring.notch's existing Sparkle controls in About.")
             }
