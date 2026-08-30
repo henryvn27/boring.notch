@@ -71,7 +71,11 @@ final class CodexActivityManager: ObservableObject {
     @Published private(set) var hookStatus = CodexHookInstaller().status()
 
     private var reducer = CodexActivityReducer()
+    private var nextLocalSequence = 0
     private let hookInstaller = CodexHookInstaller()
+    private lazy var localObserver = CodexLocalSessionObserver { [weak self] event in
+        Task { @MainActor in self?.receive(event) }
+    }
     private var refreshTask: Task<Void, Never>?
     private lazy var server = CodexBridgeServer { [weak self] event in
         await self?.receive(event) ?? .deferDecision
@@ -84,6 +88,8 @@ final class CodexActivityManager: ObservableObject {
             _ = try hookInstaller.repairExistingIntegrationIfNeeded(intentionallyRemoved: false)
             hookStatus = hookInstaller.status()
             try server.start()
+            recoverRecentSessions()
+            localObserver.start()
             bridgeError = nil
             refreshTask = Task { [weak self] in
                 while !Task.isCancelled {
@@ -102,6 +108,7 @@ final class CodexActivityManager: ObservableObject {
     func stop() {
         refreshTask?.cancel()
         refreshTask = nil
+        localObserver.stop()
         server.stop()
         reducer.disconnect()
         snapshot = reducer.snapshot()
@@ -131,6 +138,34 @@ final class CodexActivityManager: ObservableObject {
         snapshot = reducer.snapshot()
         // Approval UI is added in the next phase; deferring preserves Codex's native prompt.
         return bridgeEvent.event == .approvalRequested ? .deferDecision : nil
+    }
+
+    private func receive(_ observedEvent: CodexObservedLifecycleEvent) {
+        nextLocalSequence += 1
+        guard let event = observedEvent.activityEvent(sequence: nextLocalSequence),
+              reducer.receive(event)
+        else { return }
+        snapshot = reducer.snapshot()
+    }
+
+    private func recoverRecentSessions(now: Date = Date()) {
+        let cutoff = now.addingTimeInterval(-CodexLocalSessionObserver.staleWorkingInterval)
+        for session in CodexLifecycleLedger.load(now: now) where session.updatedAt >= cutoff {
+            nextLocalSequence += 1
+            _ = reducer.receive(
+                CodexActivityEvent(
+                    origin: .localObservation,
+                    sequence: nextLocalSequence,
+                    timestamp: session.updatedAt,
+                    sessionID: session.sessionID,
+                    turnID: session.turnID,
+                    cwd: session.workingDirectory,
+                    kind: .working
+                ),
+                now: now
+            )
+        }
+        snapshot = reducer.snapshot(now: now)
     }
 }
 

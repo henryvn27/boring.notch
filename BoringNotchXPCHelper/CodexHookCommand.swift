@@ -47,6 +47,7 @@ enum CodexHookCommand {
             return 1
         }
         let event = bridgeEvent(from: input)
+        updateLifecycleLedger(input: input, event: event)
         do {
             switch input.hookEventName {
             case .permissionRequest:
@@ -130,6 +131,33 @@ enum CodexHookCommand {
             toolInput: input.toolInput,
             humanDescription: input.humanDescription
         )
+    }
+
+    private static func updateLifecycleLedger(
+        input: CodexHookInput,
+        event: CodexBridgeEvent
+    ) {
+        do {
+            switch input.hookEventName {
+            case .userPromptSubmit, .permissionRequest:
+                try CodexLifecycleLedger.markWorking(
+                    sessionID: event.sessionId,
+                    turnID: event.turnId,
+                    workingDirectory: event.cwd,
+                    model: event.model,
+                    updatedAt: event.timestamp
+                )
+            case .sessionStart, .stop:
+                try CodexLifecycleLedger.remove(
+                    sessionID: event.sessionId,
+                    now: event.timestamp
+                )
+            case .subagentStart, .subagentStop:
+                break
+            }
+        } catch {
+            writeError("lifecycle recovery state was not updated: \(error.localizedDescription)")
+        }
     }
 
     private static func readBoundedInput() -> Data? {

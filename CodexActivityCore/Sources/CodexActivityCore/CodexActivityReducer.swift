@@ -70,7 +70,7 @@ public struct CodexActivityReducer: Sendable {
     private var lastAcceptedAt: Date?
     private var isDisconnected = true
 
-    public init(staleAfter: TimeInterval = 30) {
+    public init(staleAfter: TimeInterval = 10 * 60) {
         self.staleAfter = staleAfter
     }
 
