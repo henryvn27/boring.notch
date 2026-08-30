@@ -104,6 +104,11 @@ struct CodexCompactActivityView: View {
     }
 
     private var statusText: String {
+        if let progress = manager.progressSnapshot {
+            if progress.isStale { return "Checkpoint stale" }
+            if progress.planLocked { return "\(progress.verifiedMilestones)/\(progress.totalMilestones) checks" }
+            return progress.phase
+        }
         guard let activity else { return "Ready" }
         let base: String
         switch activity.state {
@@ -183,6 +188,11 @@ struct CodexActivityPanel: View {
 
             Divider().overlay(.white.opacity(0.12))
 
+            if let progress = manager.progressSnapshot {
+                agentProgressView(progress)
+                Divider().overlay(.white.opacity(0.12))
+            }
+
             if manager.snapshot.activities.isEmpty {
                 emptyState
             } else {
@@ -207,6 +217,51 @@ struct CodexActivityPanel: View {
                 integrationView
             }
         }
+    }
+
+    private func agentProgressView(_ progress: CodexAgentProgressSnapshot) -> some View {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(progress.title)
+                        .font(.system(size: 11.5, weight: .semibold))
+                        .lineLimit(1)
+                    Text(progress.isStale ? "Checkpoint is stale" : progress.phase)
+                        .font(.system(size: 9.5))
+                        .foregroundStyle(.white.opacity(0.55))
+                        .lineLimit(1)
+                }
+                Spacer()
+                Text(progress.checkpointLabel)
+                    .font(.system(size: 9.5, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.62))
+            }
+            if let fraction = progress.checkpointFraction {
+                ProgressView(value: fraction)
+                    .progressViewStyle(.linear)
+                    .tint(.effectiveAccent)
+                    .accessibilityLabel("Verified task checkpoints")
+                    .accessibilityValue(progress.checkpointLabel)
+            }
+            if !progress.agents.isEmpty {
+                Text(agentSummary(progress.agents))
+                    .font(.system(size: 9.5))
+                    .foregroundStyle(.white.opacity(0.48))
+                    .lineLimit(1)
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+        .accessibilityElement(children: .combine)
+    }
+
+    private func agentSummary(_ agents: [CodexAgentProgressSnapshot.Agent]) -> String {
+        let working = agents.count { $0.state == .working }
+        let blocked = agents.count { $0.state == .blocked }
+        var parts = ["\(agents.count) agent\(agents.count == 1 ? "" : "s")"]
+        if working > 0 { parts.append("\(working) working") }
+        if blocked > 0 { parts.append("\(blocked) blocked") }
+        return parts.joined(separator: " · ")
     }
 
     private var usageView: some View {
@@ -247,6 +302,15 @@ struct CodexActivityPanel: View {
                             .font(.system(size: 9.5))
                             .foregroundStyle(.white.opacity(0.52))
                             .lineLimit(1)
+                            if let pace = limit.pace() {
+                                Text(pace.label)
+                                    .font(.system(size: 9))
+                                    .foregroundStyle(
+                                        pace == .mayExhaustBeforeReset
+                                            ? Color.orange : Color.white.opacity(0.48)
+                                    )
+                                    .lineLimit(1)
+                            }
                         }
                         .accessibilityElement(children: .combine)
                     }

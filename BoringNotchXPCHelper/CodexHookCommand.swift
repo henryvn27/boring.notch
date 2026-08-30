@@ -4,7 +4,10 @@
 import Foundation
 
 enum CodexHookCommand {
-    static let supportedCommands = Set(["hook", "ping", "diagnostics", "demo", "version", "--version", "-v"])
+    static let supportedCommands = Set([
+        "hook", "ping", "diagnostics", "demo", "progress", "progress-clear",
+        "version", "--version", "-v",
+    ])
 
     static func canHandle(arguments: [String]) -> Bool {
         arguments.dropFirst().first.map(supportedCommands.contains) ?? false
@@ -22,6 +25,8 @@ enum CodexHookCommand {
         case "demo":
             guard let name = arguments.dropFirst(2).first else { return 2 }
             return runDemo(name: name, client: client)
+        case "progress": return runProgress()
+        case "progress-clear": return clearProgress()
         case "version", "--version", "-v":
             writeOutput("Boring Notch Codex hook \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown")\n")
             return 0
@@ -72,6 +77,32 @@ enum CodexHookCommand {
         let result = client.diagnostics()
         writeJSON(result)
         return result["ok"] as? Bool == true ? 0 : 1
+    }
+
+    private static func runProgress() -> Int32 {
+        guard let input = readBoundedInput(maximumSize: CodexAgentProgressStore.maximumDocumentSize) else {
+            writeError("progress input is unavailable or exceeds 64 KB")
+            return 1
+        }
+        do {
+            try CodexAgentProgressStore().write(input)
+            writeJSON(["stored": true])
+            return 0
+        } catch {
+            writeError(error.localizedDescription)
+            return 1
+        }
+    }
+
+    private static func clearProgress() -> Int32 {
+        do {
+            try CodexAgentProgressStore().clear()
+            writeJSON(["cleared": true])
+            return 0
+        } catch {
+            writeError(error.localizedDescription)
+            return 1
+        }
     }
 
     private static func runDemo(name: String, client: CodexHookBridgeClient) -> Int32 {
@@ -165,11 +196,13 @@ enum CodexHookCommand {
         }
     }
 
-    private static func readBoundedInput() -> Data? {
+    private static func readBoundedInput(
+        maximumSize: Int = CodexHookBridgeClient.maximumMessageSize
+    ) -> Data? {
         var input = Data()
         do {
-            while input.count <= CodexHookBridgeClient.maximumMessageSize {
-                let remaining = CodexHookBridgeClient.maximumMessageSize + 1 - input.count
+            while input.count <= maximumSize {
+                let remaining = maximumSize + 1 - input.count
                 guard let chunk = try FileHandle.standardInput.read(upToCount: min(64 * 1_024, remaining)),
                       !chunk.isEmpty
                 else { return input }

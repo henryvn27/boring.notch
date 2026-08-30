@@ -71,6 +71,8 @@ final class CodexActivityManager: ObservableObject {
     @Published private(set) var hookStatus = CodexHookInstaller().status()
     @Published private(set) var hookTrust = CodexHookTrustReport.notChecked
     @Published private(set) var selfTestStatus = "Not run"
+    @Published private(set) var progressSnapshot: CodexAgentProgressSnapshot?
+    @Published private(set) var progressError: String?
     @Published private(set) var approvalRequests: [CodexApprovalRequest] = []
 
     private var reducer = CodexActivityReducer()
@@ -78,6 +80,7 @@ final class CodexActivityManager: ObservableObject {
     private var approvalContinuations: [UUID: CheckedContinuation<CodexApprovalDecision?, Never>] = [:]
     private var approvalExpirationTasks: [UUID: Task<Void, Never>] = [:]
     private let hookInstaller = CodexHookInstaller()
+    private let progressStore = CodexAgentProgressStore()
     private let capsLockService: any CapsLockSignalService = NativeCapsLockSignalService()
     private lazy var localObserver = CodexLocalSessionObserver { [weak self] event in
         Task { @MainActor in self?.receive(event) }
@@ -98,6 +101,7 @@ final class CodexActivityManager: ObservableObject {
             refreshHookTrust()
             try server.start()
             recoverRecentSessions()
+            refreshAgentProgress()
             localObserver.start()
             CodexUsageManager.shared.start()
             CodexCostManager.shared.start()
@@ -107,6 +111,7 @@ final class CodexActivityManager: ObservableObject {
                     try? await Task.sleep(for: .seconds(1))
                     guard let self else { return }
                     snapshot = reducer.snapshot()
+                    refreshAgentProgress()
                 }
             }
         } catch {
@@ -146,6 +151,16 @@ final class CodexActivityManager: ObservableObject {
 
     func refreshCodexIntegrationStatus() {
         hookStatus = hookInstaller.status()
+    }
+
+    func refreshAgentProgress() {
+        do {
+            progressSnapshot = try progressStore.load()
+            progressError = nil
+        } catch {
+            progressSnapshot = nil
+            progressError = Self.sanitized(error.localizedDescription)
+        }
     }
 
     func refreshHookTrust() {
@@ -202,6 +217,7 @@ final class CodexActivityManager: ObservableObject {
         Hook status: \(Self.sanitized(hookStatus.summary))
         Hook trust: \(Self.sanitized(hookTrust.state.summary))
         Integration self-test: \(Self.sanitized(selfTestStatus))
+        Agent progress: \(progressSnapshot.map { Self.sanitized($0.checkpointLabel) } ?? progressError ?? "Not published")
         Bridge: \(bridgeStatus)
         Local observation: \(localObservationStatus)
         Codex executable: \(executableStatus)

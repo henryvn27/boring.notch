@@ -1,0 +1,53 @@
+name: Codex visual proof artifact
+
+on:
+  pull_request:
+    paths:
+      - 'boringNotch/Codex/**'
+      - 'boringNotch/components/Onboarding/**'
+      - 'boringNotch/boringNotchApp.swift'
+      - 'BoringNotchXPCHelper/**'
+      - 'boringNotch.xcodeproj/project.pbxproj'
+      - '.github/workflows/codex_visual_proof.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  app:
+    name: Build launchable macOS app
+    runs-on: macos-15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Build
+        uses: mxcl/xcodebuild@d3ee9b419c1be9a988086c58fe0988f32d99cfc5 # v3.6.0
+        with:
+          xcode: '~26.0'
+          platform: macOS
+          scheme: boringNotch
+          action: build
+          verbosity: xcpretty
+          upload-logs: always
+          configuration: release
+
+      - name: Package app
+        shell: bash
+        run: |
+          set -euo pipefail
+          app_path=$(find "$HOME/Library/Developer/Xcode/DerivedData" -type d -path '*/Build/Products/Release/boringNotch.app' -print -quit)
+          if [[ -z "$app_path" ]]; then
+            echo '::error::The release app was not found in DerivedData.'
+            exit 1
+          fi
+          ditto -c -k --sequesterRsrc --keepParent "$app_path" "$RUNNER_TEMP/boringNotch.app.zip"
+
+      - name: Upload app
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: boringNotch-visual-proof-${{ github.sha }}
+          path: ${{ runner.temp }}/boringNotch.app.zip
+          if-no-files-found: error
+          retention-days: 7

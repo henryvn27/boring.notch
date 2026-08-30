@@ -17,7 +17,10 @@ struct BoringHeader: View {
     var body: some View {
         HStack(spacing: 0) {
             HStack {
-                if !tvm.isEmpty || coordinator.alwaysShowTabs || !codexActivity.snapshot.activities.isEmpty {
+                if !tvm.isEmpty || coordinator.alwaysShowTabs
+                    || !codexActivity.snapshot.activities.isEmpty
+                    || codexActivity.progressSnapshot != nil
+                {
                     TabSelectionView()
                 } else if vm.notchState == .open {
                     EmptyView()

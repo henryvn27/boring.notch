@@ -4,6 +4,27 @@ enum CodexUsageServiceTests {
     static func run() throws {
         try parsesOfficialRateLimitWindowsAndClampsValues()
         try rejectsMissingRateLimitPayload()
+        try classifiesQuotaPaceWithoutInventingTaskProgress()
+    }
+
+    private static func classifiesQuotaPaceWithoutInventingTaskProgress() throws {
+        let reset = Date(timeIntervalSince1970: 10_000)
+        let halfway = reset.addingTimeInterval(-5_000)
+        let below = CodexUsageLimit(
+            id: "below", name: "Window", usedPercent: 20,
+            resetsAt: reset, windowDurationMinutes: 10_000 / 60
+        )
+        let onPace = CodexUsageLimit(
+            id: "on", name: "Window", usedPercent: 50,
+            resetsAt: reset, windowDurationMinutes: 10_000 / 60
+        )
+        let atRisk = CodexUsageLimit(
+            id: "risk", name: "Window", usedPercent: 80,
+            resetsAt: reset, windowDurationMinutes: 10_000 / 60
+        )
+        try expect(below.pace(at: halfway) == .belowPace)
+        try expect(onPace.pace(at: halfway) == .onPace)
+        try expect(atRisk.pace(at: halfway) == .mayExhaustBeforeReset)
     }
 
     private static func parsesOfficialRateLimitWindowsAndClampsValues() throws {
