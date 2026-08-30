@@ -58,6 +58,64 @@ enum SoftwareUpdateStore {
 }
 
 @MainActor
+final class CodexActivityManager: ObservableObject {
+    static let shared = CodexActivityManager()
+
+    @Published private(set) var snapshot = ActivitySnapshot(
+        generatedAt: Date(),
+        availability: .disconnected,
+        activities: [],
+        pendingApproval: nil
+    )
+    @Published private(set) var bridgeError: String?
+
+    private var reducer = CodexActivityReducer()
+    private var refreshTask: Task<Void, Never>?
+    private lazy var server = CodexBridgeServer { [weak self] event in
+        await self?.receive(event) ?? .deferDecision
+    }
+
+    func start() {
+        guard refreshTask == nil else { return }
+        do {
+            try server.start()
+            bridgeError = nil
+            refreshTask = Task { [weak self] in
+                while !Task.isCancelled {
+                    try? await Task.sleep(for: .seconds(1))
+                    guard let self else { return }
+                    snapshot = reducer.snapshot()
+                }
+            }
+        } catch {
+            bridgeError = error.localizedDescription
+            reducer.disconnect()
+            snapshot = reducer.snapshot()
+        }
+    }
+
+    func stop() {
+        refreshTask?.cancel()
+        refreshTask = nil
+        server.stop()
+        reducer.disconnect()
+        snapshot = reducer.snapshot()
+    }
+
+    private func receive(_ bridgeEvent: CodexBridgeEvent) -> CodexApprovalDecision? {
+        guard bridgeEvent.event != .ping else { return nil }
+        guard let rawSequence = bridgeEvent.deliverySequence,
+              let sequence = Int(exactly: rawSequence),
+              let event = bridgeEvent.activityEvent(sequence: sequence),
+              reducer.receive(event)
+        else { return bridgeEvent.event == .approvalRequested ? .deferDecision : nil }
+        snapshot = reducer.snapshot()
+        // Approval UI is added in the next phase; deferring preserves Codex's native prompt.
+        return bridgeEvent.event == .approvalRequested ? .deferDecision : nil
+    }
+}
+
+@MainActor
 final class BoringSparkleUpdaterDelegate: NSObject, SPUUpdaterDelegate {
     func updaterShouldPromptForPermissionToCheck(forUpdates updater: SPUUpdater) -> Bool {
         false
@@ -89,6 +147,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        CodexActivityManager.shared.stop()
+
         // Flush debounced shelf persistence to avoid losing recent changes
         ShelfStateViewModel.shared.flushSync()
 
@@ -311,6 +371,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+
+        CodexActivityManager.shared.start()
 
         NotificationCenter.default.addObserver(
             self,

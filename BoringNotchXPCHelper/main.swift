@@ -7,6 +7,10 @@
 
 import Foundation
 
+if CodexHookCommand.canHandle(arguments: CommandLine.arguments) {
+    exit(CodexHookCommand.run(arguments: CommandLine.arguments))
+}
+
 class ServiceDelegate: NSObject, NSXPCListenerDelegate {
     
     /// This method is where the NSXPCListener configures, accepts, and resumes a new incoming NSXPCConnection.

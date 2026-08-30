@@ -6,8 +6,9 @@ build_dir="$root/.build/direct"
 mkdir -p "$build_dir"
 
 swiftc \
-  "$root/Sources/CodexActivityCore/ActivitySnapshot.swift" \
-  "$root/Sources/CodexActivityCore/CodexActivityReducer.swift" \
+  "$root/Sources/CodexActivityCore/"*.swift \
+  "$root/../BoringNotchXPCHelper/CodexHookBridgeClient.swift" \
+  "$root/Tests/CodexActivityCoreTests/CodexBridgeServerTests.swift" \
   "$root/Tests/CodexActivityCoreTests/CodexActivityReducerTests.swift" \
   -o "$build_dir/CodexActivityCoreTests"
 
