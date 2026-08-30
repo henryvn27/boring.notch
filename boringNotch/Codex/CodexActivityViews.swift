@@ -134,6 +134,7 @@ private struct CodexCompactButtonStyle: ButtonStyle {
 
 struct CodexActivityPanel: View {
     @ObservedObject private var manager = CodexActivityManager.shared
+    @ObservedObject private var usage = CodexUsageManager.shared
     @State private var integrationError: String?
 
     var body: some View {
@@ -191,11 +192,64 @@ struct CodexActivityPanel: View {
                 }
             }
 
+            if usage.snapshot != nil || usage.isRefreshing {
+                Divider().overlay(.white.opacity(0.12))
+                usageView
+            }
+
             if !manager.hookStatus.isHealthy || integrationError != nil {
                 Divider().overlay(.white.opacity(0.12))
                 integrationView
             }
         }
+    }
+
+    private var usageView: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack {
+                Label("Codex quota", systemImage: "gauge.with.dots.needle.33percent")
+                    .font(.system(size: 10.5, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.58))
+                Spacer()
+                if usage.isRefreshing {
+                    ProgressView().controlSize(.mini)
+                } else {
+                    Button {
+                        usage.refresh()
+                    } label: {
+                        Image(systemName: "arrow.clockwise")
+                    }
+                    .buttonStyle(.plain)
+                    .help("Refresh Codex quota")
+                    .accessibilityLabel("Refresh Codex quota")
+                }
+            }
+
+            if let snapshot = usage.snapshot {
+                HStack(spacing: 16) {
+                    ForEach(Array(snapshot.limits.prefix(2))) { limit in
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text("\(Int(limit.remainingPercent.rounded()))% quota left")
+                                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                                .monospacedDigit()
+                            HStack(spacing: 3) {
+                                Text(limit.name)
+                                if let reset = limit.resetsAt {
+                                    Text("· resets")
+                                    Text(reset, style: .relative)
+                                }
+                            }
+                            .font(.system(size: 9.5))
+                            .foregroundStyle(.white.opacity(0.52))
+                            .lineLimit(1)
+                        }
+                        .accessibilityElement(children: .combine)
+                    }
+                }
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
     }
 
     private var emptyState: some View {

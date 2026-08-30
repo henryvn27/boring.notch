@@ -93,6 +93,7 @@ final class CodexActivityManager: ObservableObject {
             try server.start()
             recoverRecentSessions()
             localObserver.start()
+            CodexUsageManager.shared.start()
             bridgeError = nil
             refreshTask = Task { [weak self] in
                 while !Task.isCancelled {
@@ -115,6 +116,7 @@ final class CodexActivityManager: ObservableObject {
         refreshTask?.cancel()
         refreshTask = nil
         localObserver.stop()
+        CodexUsageManager.shared.stop()
         server.stop()
         reducer.disconnect()
         snapshot = reducer.snapshot()
@@ -159,6 +161,7 @@ final class CodexActivityManager: ObservableObject {
               reducer.receive(event)
         else { return bridgeEvent.event == .approvalRequested ? .deferDecision : nil }
         snapshot = reducer.snapshot()
+        CodexUsageManager.shared.refreshAfterActivity()
         guard bridgeEvent.event == .approvalRequested else { return nil }
         let request = CodexApprovalRequest(bridgeEvent: bridgeEvent, expiresAt: bridgeEvent.timestamp.addingTimeInterval(30))
         approvalRequests.append(request)
@@ -178,6 +181,7 @@ final class CodexActivityManager: ObservableObject {
               reducer.receive(event)
         else { return }
         snapshot = reducer.snapshot()
+        CodexUsageManager.shared.refreshAfterActivity()
     }
 
     private func recoverRecentSessions(now: Date = Date()) {
