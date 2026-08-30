@@ -1,0 +1,299 @@
+// Portions adapted from Cowlick (MIT).
+// Copyright (c) 2026 Cowlick contributors.
+
+import Darwin
+import Foundation
+
+actor ProviderAccountStore {
+  static let currentVersion = 1
+  static let maximumMetadataSize = 262_144
+
+  private let metadataURL: URL
+  private let credentialStore: any CredentialSecretStore
+  private var cachedAccounts: [ProviderAccount]?
+  private var credentialMutationInProgress = false
+  private var credentialMutationWaiters: [CheckedContinuation<Void, Never>] = []
+
+  init(
+    metadataURL: URL = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/BoringNotch", isDirectory: true)
+      .appendingPathComponent("provider-accounts.json"),
+    credentialStore: any CredentialSecretStore = KeychainCredentialSecretStore()
+  ) {
+    self.metadataURL = metadataURL
+    self.credentialStore = credentialStore
+  }
+
+  func accounts() throws -> [ProviderAccount] {
+    try loadIfNeeded()
+  }
+
+  @discardableResult
+  func create(
+    provider: UsageProvider,
+    alias: String,
+    credentialReference: CredentialReference = CredentialReference(id: UUID())
+  ) async throws -> ProviderAccount {
+    await beginCredentialMutation()
+    defer { endCredentialMutation() }
+    var accounts = try loadIfNeeded()
+    guard !accounts.contains(where: { $0.credentialReference == credentialReference }) else {
+      throw ProviderAccountStoreError.duplicateCredentialReference
+    }
+    let account = ProviderAccount(
+      id: UUID(),
+      provider: provider,
+      alias: try Self.validatedAlias(alias),
+      credentialReference: credentialReference
+    )
+    accounts.append(account)
+    try persist(accounts)
+    cachedAccounts = accounts
+    return account
+  }
+
+  @discardableResult
+  func create(provider: UsageProvider, alias: String, credential: Data) async throws
+    -> ProviderAccount
+  {
+    guard UsageProvider.supportedBillingAccounts.contains(provider) else {
+      throw ProviderAccountStoreError.unsupportedProvider
+    }
+    await beginCredentialMutation()
+    defer { endCredentialMutation() }
+
+    let account = ProviderAccount(
+      id: UUID(),
+      provider: provider,
+      alias: try Self.validatedAlias(alias),
+      credentialReference: CredentialReference(id: UUID())
+    )
+    try await credentialStore.store(credential, for: account.credentialReference)
+
+    do {
+      var accounts = try loadIfNeeded()
+      accounts.append(account)
+      try persist(accounts)
+      cachedAccounts = accounts
+      return account
+    } catch {
+      do {
+        try await credentialStore.deleteSecret(for: account.credentialReference)
+      } catch {
+        throw ProviderAccountStoreError.couldNotRollBackCredential
+      }
+      throw error
+    }
+  }
+
+  func rename(accountID: UUID, alias: String) async throws {
+    await beginCredentialMutation()
+    defer { endCredentialMutation() }
+    var accounts = try loadIfNeeded()
+    guard let index = accounts.firstIndex(where: { $0.id == accountID }) else {
+      throw ProviderAccountStoreError.accountNotFound
+    }
+    accounts[index].alias = try Self.validatedAlias(alias)
+    try persist(accounts)
+    cachedAccounts = accounts
+  }
+
+  func replaceCredential(accountID: UUID, credential: Data) async throws {
+    await beginCredentialMutation()
+    defer { endCredentialMutation() }
+    let accounts = try loadIfNeeded()
+    guard let account = accounts.first(where: { $0.id == accountID }) else {
+      throw ProviderAccountStoreError.accountNotFound
+    }
+    guard UsageProvider.supportedBillingAccounts.contains(account.provider) else {
+      throw ProviderAccountStoreError.unsupportedProvider
+    }
+    try await credentialStore.store(credential, for: account.credentialReference)
+  }
+
+  func purgeReferencedCredentials() async throws -> Int {
+    await beginCredentialMutation()
+    defer { endCredentialMutation() }
+    let accounts = try loadIfNeeded()
+    for account in accounts {
+      try await credentialStore.deleteSecret(for: account.credentialReference)
+      guard try await credentialStore.secret(for: account.credentialReference) == nil else {
+        throw ProviderAccountStoreError.credentialCleanupCouldNotBeVerified
+      }
+    }
+    return accounts.count
+  }
+
+  @discardableResult
+  func remove(accountID: UUID) async throws -> ProviderAccount {
+    await beginCredentialMutation()
+    defer { endCredentialMutation() }
+    var accounts = try loadIfNeeded()
+    guard let index = accounts.firstIndex(where: { $0.id == accountID }) else {
+      throw ProviderAccountStoreError.accountNotFound
+    }
+    let account = accounts[index]
+    accounts.remove(at: index)
+    try persist(accounts)
+    do {
+      try await credentialStore.deleteSecret(for: account.credentialReference)
+      cachedAccounts = accounts
+      return account
+    } catch {
+      do {
+        var restoredAccounts = accounts
+        restoredAccounts.insert(account, at: index)
+        try persist(restoredAccounts)
+        cachedAccounts = restoredAccounts
+      } catch {
+        cachedAccounts = nil
+        throw ProviderAccountStoreError.couldNotRollBackMetadata
+      }
+      throw error
+    }
+  }
+
+  private struct MetadataFile: Codable {
+    let version: Int
+    let accounts: [ProviderAccount]
+  }
+
+  private func loadIfNeeded() throws -> [ProviderAccount] {
+    if let cachedAccounts { return cachedAccounts }
+    let accounts = try readMetadata()
+    cachedAccounts = accounts
+    return accounts
+  }
+
+  private func readMetadata() throws -> [ProviderAccount] {
+    var info = stat()
+    if lstat(metadataURL.path, &info) != 0 {
+      if errno == ENOENT { return [] }
+      throw ProviderAccountStoreError.unreadableMetadata
+    }
+    guard (info.st_mode & S_IFMT) == S_IFREG,
+      info.st_uid == getuid(),
+      (info.st_mode & 0o077) == 0,
+      info.st_size >= 0,
+      info.st_size <= Self.maximumMetadataSize
+    else { throw ProviderAccountStoreError.unreadableMetadata }
+
+    let data: Data
+    do {
+      data = try Data(contentsOf: metadataURL, options: .mappedIfSafe)
+    } catch {
+      throw ProviderAccountStoreError.unreadableMetadata
+    }
+    guard data.count <= Self.maximumMetadataSize else {
+      throw ProviderAccountStoreError.unreadableMetadata
+    }
+
+    let metadata: MetadataFile
+    do {
+      metadata = try JSONDecoder().decode(MetadataFile.self, from: data)
+    } catch {
+      throw ProviderAccountStoreError.unreadableMetadata
+    }
+    guard metadata.version == Self.currentVersion else {
+      throw ProviderAccountStoreError.unsupportedVersion
+    }
+
+    var accountIDs = Set<UUID>()
+    var credentialIDs = Set<CredentialReference>()
+    for account in metadata.accounts {
+      guard accountIDs.insert(account.id).inserted,
+        credentialIDs.insert(account.credentialReference).inserted,
+        (try? Self.validatedAlias(account.alias)) == account.alias
+      else { throw ProviderAccountStoreError.unreadableMetadata }
+    }
+    return metadata.accounts
+  }
+
+  private func persist(_ accounts: [ProviderAccount]) throws {
+    let directory = metadataURL.deletingLastPathComponent()
+    do {
+      try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+      try FileManager.default.setAttributes(
+        [.posixPermissions: 0o700], ofItemAtPath: directory.path)
+      let encoder = JSONEncoder()
+      encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+      let data = try encoder.encode(MetadataFile(version: Self.currentVersion, accounts: accounts))
+      guard data.count <= Self.maximumMetadataSize else {
+        throw ProviderAccountStoreError.unreadableMetadata
+      }
+      let temporaryURL = directory.appendingPathComponent(
+        ".provider-accounts.\(UUID().uuidString).tmp")
+      do {
+        try data.write(to: temporaryURL, options: .withoutOverwriting)
+        try FileManager.default.setAttributes(
+          [.posixPermissions: 0o600], ofItemAtPath: temporaryURL.path)
+        guard Darwin.rename(temporaryURL.path, metadataURL.path) == 0 else {
+          throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
+        }
+      } catch {
+        try? FileManager.default.removeItem(at: temporaryURL)
+        throw error
+      }
+    } catch let error as ProviderAccountStoreError {
+      throw error
+    } catch {
+      throw ProviderAccountStoreError.couldNotPersist
+    }
+  }
+
+  private static func validatedAlias(_ alias: String) throws -> String {
+    let alias = alias.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !alias.isEmpty,
+      alias.count <= 64,
+      !alias.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains)
+    else { throw ProviderAccountStoreError.invalidAlias }
+    return alias
+  }
+
+  private func beginCredentialMutation() async {
+    if credentialMutationInProgress {
+      await withCheckedContinuation { credentialMutationWaiters.append($0) }
+      return
+    }
+    credentialMutationInProgress = true
+  }
+
+  private func endCredentialMutation() {
+    guard !credentialMutationWaiters.isEmpty else {
+      credentialMutationInProgress = false
+      return
+    }
+    credentialMutationWaiters.removeFirst().resume()
+  }
+}
+
+enum ProviderAccountStoreError: LocalizedError, Equatable {
+  case invalidAlias
+  case accountNotFound
+  case duplicateCredentialReference
+  case unsupportedProvider
+  case unreadableMetadata
+  case unsupportedVersion
+  case couldNotPersist
+  case couldNotRollBackCredential
+  case couldNotRollBackMetadata
+  case credentialCleanupCouldNotBeVerified
+
+  var errorDescription: String? {
+    switch self {
+    case .invalidAlias: "Use an account name between 1 and 64 characters."
+    case .accountNotFound: "That provider account no longer exists."
+    case .duplicateCredentialReference: "That credential is already assigned to an account."
+    case .unsupportedProvider: "boring.notch does not support billing accounts for that provider."
+    case .unreadableMetadata: "boring.notch could not safely read provider accounts."
+    case .unsupportedVersion: "The provider account file was created by a newer boring.notch version."
+    case .couldNotPersist: "boring.notch could not save provider accounts."
+    case .couldNotRollBackCredential:
+      "boring.notch could not clean up a credential after the account failed to save."
+    case .couldNotRollBackMetadata:
+      "boring.notch could not restore the account after Keychain cleanup failed."
+    case .credentialCleanupCouldNotBeVerified:
+      "boring.notch could not verify that every provider credential was removed from Keychain."
+    }
+  }
+}
+
