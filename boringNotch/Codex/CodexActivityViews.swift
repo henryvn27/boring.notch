@@ -136,6 +136,7 @@ private struct CodexCompactButtonStyle: ButtonStyle {
 struct CodexActivityPanel: View {
     @ObservedObject private var manager = CodexActivityManager.shared
     @ObservedObject private var usage = CodexUsageManager.shared
+    @ObservedObject private var cost = CodexCostManager.shared
     @Default(.codexShowQuota) private var showQuota
     @State private var integrationError: String?
 
@@ -248,6 +249,33 @@ struct CodexActivityPanel: View {
                         .accessibilityElement(children: .combine)
                     }
                 }
+            }
+
+            if let estimate = cost.estimate {
+                HStack(spacing: 5) {
+                    Text("API-price equivalent")
+                        .foregroundStyle(.white.opacity(0.52))
+                    Text(
+                        NSDecimalNumber(decimal: estimate.measurement.amount).doubleValue,
+                        format: .currency(code: estimate.measurement.currency)
+                    )
+                    .fontWeight(.semibold)
+                    Text("· this Mac estimate")
+                        .foregroundStyle(.white.opacity(0.52))
+                }
+                .font(.system(size: 9.5))
+                .accessibilityElement(children: .combine)
+            }
+
+            if let forecast = cost.forecast {
+                HStack(spacing: 5) {
+                    Text(ResetForecast.sourceName)
+                        .foregroundStyle(.white.opacity(0.52))
+                    Text(forecast.scoreLabel)
+                        .fontWeight(.semibold)
+                }
+                .font(.system(size: 9.5))
+                .accessibilityElement(children: .combine)
             }
         }
         .padding(.horizontal, 14)

@@ -8,11 +8,15 @@ import SwiftUI
 struct CodexSettingsView: View {
     @ObservedObject private var manager = CodexActivityManager.shared
     @ObservedObject private var usage = CodexUsageManager.shared
+    @ObservedObject private var cost = CodexCostManager.shared
     @Default(.codexShowQuota) private var showQuota
     @Default(.codexAutoOpenApprovals) private var autoOpenApprovals
     @Default(.codexApprovalTimeout) private var approvalTimeout
     @Default(.codexCapsLockSignals) private var capsLockSignals
     @Default(.codexCapsLockFlashCount) private var capsLockFlashCount
+    @Default(.codexLocalCostEstimate) private var localCostEstimate
+    @Default(.codexCostWindow) private var costWindow
+    @Default(.codexResetForecast) private var resetForecast
     @State private var integrationError: String?
     @State private var capsLockStatus = "Not tested"
     @State private var diagnostics = ""
@@ -104,6 +108,52 @@ struct CodexSettingsView: View {
                 Text("Caps Lock signal")
             } footer: {
                 Text("Signals always restore the original Caps Lock state. Approval attention remains inverted only while an exact request is pending. macOS may require Input Monitoring or Accessibility permission.")
+            }
+
+            Section {
+                Toggle("Estimate API-price equivalent from local transcripts", isOn: $localCostEstimate)
+                    .onChange(of: localCostEstimate) { cost.refresh() }
+                Picker("Estimate window", selection: $costWindow) {
+                    ForEach(APICostWindow.allCases) { window in
+                        Text(window.label).tag(window.rawValue)
+                    }
+                }
+                .disabled(!localCostEstimate)
+                .onChange(of: costWindow) { cost.refresh() }
+                if let estimate = cost.estimate {
+                    LabeledContent(
+                        "Local estimate",
+                        value: NSDecimalNumber(decimal: estimate.measurement.amount).doubleValue
+                            .formatted(.currency(code: estimate.measurement.currency))
+                    )
+                    LabeledContent(
+                        "Coverage",
+                        value: estimate.measurement.coverage == .thisMac ? "This Mac" : "Partial"
+                    )
+                    if !estimate.exclusionReasons.isEmpty {
+                        Text("\(estimate.exclusionReasons.count) uncertainty flag(s); tool fees are excluded.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                Toggle("Show third-party reset forecast", isOn: $resetForecast)
+                    .onChange(of: resetForecast) { cost.refresh() }
+                if resetForecast {
+                    Text("\(ResetForecast.sourceName): \(ResetForecast.disclaimer)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Link("Open source website", destination: ResetForecast.sourceURL)
+                }
+                HStack {
+                    Button(cost.isRefreshing ? "Refreshing…" : "Refresh") { cost.refresh() }
+                        .disabled(cost.isRefreshing || (!localCostEstimate && !resetForecast))
+                    Button("Reset Local Cost Cache") { cost.resetLocalCache() }
+                        .disabled(!localCostEstimate)
+                }
+            } header: {
+                Text("Cost and reset context")
+            } footer: {
+                Text("The local number is an API-price equivalent, not a subscription bill. It reads token counters only and never retains prompt or tool content. The reset forecast is opt-in network data from an attributed third party.")
             }
 
             Section {

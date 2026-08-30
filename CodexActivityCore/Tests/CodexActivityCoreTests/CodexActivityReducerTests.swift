@@ -16,7 +16,8 @@ struct CodexActivityReducerTests {
         try CodexLifecycleTests.run()
         try CodexUsageServiceTests.run()
         try await CapsLockSignalServiceTests.run()
-        print("CodexActivityCore: 18 tests passed")
+        try await CodexCostServiceTests.run()
+        print("CodexActivityCore: 20 tests passed")
     }
 
     private static func orderingUsesStateRecencyThenStableSessionID() throws {

@@ -225,6 +225,9 @@ extension Defaults.Keys {
     static let codexApprovalTimeout = Key<Double>("codexApprovalTimeout", default: 30)
     static let codexCapsLockSignals = Key<Bool>("codexCapsLockSignals", default: false)
     static let codexCapsLockFlashCount = Key<Int>("codexCapsLockFlashCount", default: 2)
+    static let codexLocalCostEstimate = Key<Bool>("codexLocalCostEstimate", default: false)
+    static let codexCostWindow = Key<String>("codexCostWindow", default: APICostWindow.today.rawValue)
+    static let codexResetForecast = Key<Bool>("codexResetForecast", default: false)
 
     // MARK: General
     static let appLanguage = Key<AppLanguage>("appLanguage", default: .system)
