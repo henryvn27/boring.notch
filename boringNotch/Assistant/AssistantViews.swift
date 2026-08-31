@@ -180,7 +180,7 @@ struct AssistantPanel: View {
             }
             VStack(alignment: .leading, spacing: 3) {
                 Text("Working on it").font(.system(size: 12.5, weight: .semibold))
-                Text("The request is ephemeral. Shared screenshots are deleted when it finishes.")
+                Text("The question and any shared screen are sent through Codex. Temporary screenshots are deleted when it finishes.")
                     .font(.system(size: 10.5))
                     .foregroundStyle(.white.opacity(0.6))
             }
@@ -264,7 +264,7 @@ struct AssistantPanel: View {
     private var screenShareNotice: some View {
         HStack(spacing: 6) {
             Image(systemName: "checkmark.rectangle.fill")
-            Text("Current display will be shared once")
+            Text("Current display will be sent to Codex once")
             Spacer()
             Button("Remove") { manager.shareScreenWithNextRequest = false }
                 .buttonStyle(.borderless)
@@ -383,9 +383,9 @@ struct AssistantSettingsView: View {
             }
 
             Section("Engine") {
-                LabeledContent("Answers", value: "Local Codex sign-in")
+                LabeledContent("Answers", value: "Your Codex account")
                 LabeledContent("Speech", value: "On-device Apple Speech")
-                Text("Assistant requests run read-only, ignore project rules and hooks, and cannot approve or execute computer actions.")
+                Text("Questions and one-request screenshots are sent to OpenAI through your local Codex sign-in. Assistant requests run read-only, ignore project rules and hooks, and cannot approve or execute computer actions.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

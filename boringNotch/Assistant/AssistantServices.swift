@@ -11,6 +11,9 @@ enum AssistantServiceError: LocalizedError {
     case speechRecognitionDenied
     case speechRecognitionUnavailable
     case screenCaptureUnavailable
+    case requestTimedOut
+    case responseTooLarge
+    case codexFailed
 
     var errorDescription: String? {
         switch self {
@@ -26,6 +29,12 @@ enum AssistantServiceError: LocalizedError {
             return "On-device speech recognition is not available right now."
         case .screenCaptureUnavailable:
             return "No display is available to share right now."
+        case .requestTimedOut:
+            return "Codex took too long to answer. Try a shorter request."
+        case .responseTooLarge:
+            return "Codex returned more text than Assistant can safely display."
+        case .codexFailed:
+            return "Codex could not answer. Open Codex, confirm you're signed in, and try again."
         }
     }
 }
@@ -131,8 +140,6 @@ struct AssistantCodexService: Sendable {
                 "--sandbox", "read-only",
                 "--skip-git-repo-check",
                 "--color", "never",
-                "--model", "gpt-5.6-luna",
-                "-c", "model_reasoning_effort=\"low\"",
                 "-C", requestDirectory.path,
             ]
             if let screenCapture {
@@ -153,7 +160,20 @@ struct AssistantCodexService: Sendable {
                 maximumOutputSize: 256 * 1_024
             )
             defer { runner.stop() }
-            try runner.readToExit()
+            do {
+                try runner.readToExit()
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch let error as BoundedProcessRunnerError {
+                switch error {
+                case .timedOut:
+                    throw AssistantServiceError.requestTimedOut
+                case .responseTooLarge:
+                    throw AssistantServiceError.responseTooLarge
+                default:
+                    throw AssistantServiceError.codexFailed
+                }
+            }
             guard let response = String(data: runner.output, encoding: .utf8) else {
                 throw AssistantServiceError.emptyResponse
             }
