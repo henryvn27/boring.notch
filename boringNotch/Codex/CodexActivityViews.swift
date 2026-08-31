@@ -605,7 +605,7 @@ struct CodexActivityPanel: View {
                     }
                     integrationError = nil
                 } catch {
-                    integrationError = error.localizedDescription
+                    integrationError = CodexActivityManager.sanitized(error.localizedDescription)
                 }
             }
             .controlSize(.small)
@@ -682,11 +682,12 @@ struct CodexActivityPanel: View {
                 .keyboardShortcut("d", modifiers: .command)
                 Button(copiedApprovalID == request.id ? "Copied" : "Copy") {
                     NSPasteboard.general.clearContents()
-                    NSPasteboard.general.setString(request.operation, forType: .string)
-                    copiedApprovalID = request.id
-                    Task {
-                        try? await Task.sleep(for: .seconds(1.5))
-                        if copiedApprovalID == request.id { copiedApprovalID = nil }
+                    if NSPasteboard.general.setString(request.operation, forType: .string) {
+                        copiedApprovalID = request.id
+                        Task {
+                            try? await Task.sleep(for: .seconds(1.5))
+                            if copiedApprovalID == request.id { copiedApprovalID = nil }
+                        }
                     }
                 }
                 .buttonStyle(.bordered)

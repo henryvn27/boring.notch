@@ -23,6 +23,7 @@ struct CodexSettingsView: View {
     @State private var confirmRemoval = false
     @State private var isRunningSelfTest = false
     @State private var isTestingCapsLock = false
+    @State private var copiedSetting: CopiedSetting?
 
     var body: some View {
         Form {
@@ -37,7 +38,9 @@ struct CodexSettingsView: View {
                                 integrationError = nil
                                 refreshDiagnostics()
                             } catch {
-                                integrationError = error.localizedDescription
+                                integrationError = CodexActivityManager.sanitized(
+                                    error.localizedDescription
+                                )
                             }
                         }
                     )
@@ -94,7 +97,9 @@ struct CodexSettingsView: View {
                                 integrationError = nil
                                 refreshDiagnostics()
                             } catch {
-                                integrationError = error.localizedDescription
+                                integrationError = CodexActivityManager.sanitized(
+                                    error.localizedDescription
+                                )
                             }
                         }
                         Button("Remove Integration", role: .destructive) {
@@ -113,9 +118,11 @@ struct CodexSettingsView: View {
                     }
                     HStack {
                         Button("Check Trust") { manager.refreshHookTrust() }
-                        Button("Copy /hooks") {
+                        Button(copiedSetting == .hooks ? "Copied /hooks" : "Copy /hooks") {
                             NSPasteboard.general.clearContents()
-                            NSPasteboard.general.setString("/hooks", forType: .string)
+                            if NSPasteboard.general.setString("/hooks", forType: .string) {
+                                markCopied(.hooks)
+                            }
                         }
                         Button(isRunningSelfTest ? "Running Self-Test…" : "Run Self-Test") {
                             Task {
@@ -269,9 +276,14 @@ struct CodexSettingsView: View {
                     .textSelection(.enabled)
 
                 HStack {
-                    Button("Copy Diagnostics") {
+                    Button(
+                        copiedSetting == .diagnostics
+                            ? "Diagnostics Copied" : "Copy Diagnostics"
+                    ) {
                         NSPasteboard.general.clearContents()
-                        NSPasteboard.general.setString(diagnostics, forType: .string)
+                        if NSPasteboard.general.setString(diagnostics, forType: .string) {
+                            markCopied(.diagnostics)
+                        }
                     }
                     Spacer()
                     Button("Refresh Diagnostics") { refreshDiagnostics() }
@@ -296,7 +308,7 @@ struct CodexSettingsView: View {
                     integrationError = nil
                     refreshDiagnostics()
                 } catch {
-                    integrationError = error.localizedDescription
+                    integrationError = CodexActivityManager.sanitized(error.localizedDescription)
                 }
             }
             Button("Cancel", role: .cancel) {}
@@ -317,5 +329,18 @@ struct CodexSettingsView: View {
         if manager.hookStatus.isHealthy { return "Repair Integration" }
         if manager.hookStatus.hasLegacyIntegration { return "Migrate Cowlick Integration" }
         return "Install Integration"
+    }
+
+    private func markCopied(_ setting: CopiedSetting) {
+        copiedSetting = setting
+        Task {
+            try? await Task.sleep(for: .seconds(1.5))
+            if copiedSetting == setting { copiedSetting = nil }
+        }
+    }
+
+    private enum CopiedSetting {
+        case hooks
+        case diagnostics
     }
 }

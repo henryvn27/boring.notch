@@ -113,7 +113,7 @@ final class CodexActivityManager: ObservableObject {
         do {
             try startActivityServices()
         } catch {
-            bridgeError = error.localizedDescription
+            bridgeError = Self.sanitized(error.localizedDescription)
             reducer.disconnect()
             snapshot = reducer.snapshot()
         }
@@ -400,7 +400,7 @@ final class CodexActivityManager: ObservableObject {
         return path.hasPrefix(home + "/") ? "~" + String(path.dropFirst(home.count)) : path
     }
 
-    private static func sanitized(_ value: String) -> String {
+    static func sanitized(_ value: String) -> String {
         let withoutHome = displayPath(value)
         let singleLine = withoutHome.unicodeScalars
             .map { CharacterSet.controlCharacters.contains($0) ? " " : String($0) }

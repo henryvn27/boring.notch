@@ -261,7 +261,7 @@ private struct CodexIntegrationOnboardingView: View {
                         errorMessage = nil
                         onContinue()
                     } catch {
-                        errorMessage = error.localizedDescription
+                        errorMessage = CodexActivityManager.sanitized(error.localizedDescription)
                     }
                 }
                 .buttonStyle(.borderedProminent)
