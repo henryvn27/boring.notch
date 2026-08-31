@@ -176,6 +176,32 @@ struct CodexSettingsView: View {
             ProviderAccountsSettingsSection()
 
             Section {
+                LabeledContent(
+                    "Checkpoint file",
+                    value: manager.progressSnapshot?.checkpointLabel
+                        ?? manager.progressError
+                        ?? "Not published"
+                )
+                if let progress = manager.progressSnapshot {
+                    LabeledContent("Phase", value: progress.phase)
+                    LabeledContent("Plan revision", value: String(progress.planRevision))
+                    LabeledContent("Freshness", value: progress.isStale ? "Stale" : "Current")
+                }
+                HStack {
+                    Button("Refresh Checkpoint") { manager.refreshAgentProgress() }
+                    Spacer()
+                    Link(
+                        "Protocol",
+                        destination: URL(string: "https://github.com/henryvn27/boring.notch/blob/dev/CODEX_PROGRESS_PROTOCOL.md")!
+                    )
+                }
+            } header: {
+                Text("Agent progress")
+            } footer: {
+                Text("boring.notch shows one aggregate bar only for a locked plan, and computes it from evidence-backed verified milestones. Agents never submit raw percentages or individual bars.")
+            }
+
+            Section {
                 TextEditor(text: .constant(diagnostics))
                     .font(.system(size: 10.5, design: .monospaced))
                     .frame(minHeight: 145)

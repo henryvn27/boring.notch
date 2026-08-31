@@ -46,6 +46,10 @@ struct ContentView: View {
     private let zeroHeightHoverPadding: CGFloat = 10
     private let nowPlayingFallbackNoticeWidth: CGFloat = 330
 
+    private var hasCodexPresentation: Bool {
+        !codexActivity.snapshot.activities.isEmpty || codexActivity.progressSnapshot != nil
+    }
+
     // MARK: - Corner Radius Scaling
     private var cornerRadiusScaleFactor: CGFloat? {
         guard Defaults[.cornerRadiusScaling] else { return nil }
@@ -92,7 +96,7 @@ struct ContentView: View {
 
         if shouldDisplayNowPlayingFallbackNotice {
             chinWidth = nowPlayingFallbackNoticeWidth
-        } else if vm.notchState == .closed && !codexActivity.snapshot.activities.isEmpty {
+        } else if vm.notchState == .closed && hasCodexPresentation {
             chinWidth = max(chinWidth, vm.closedNotchSize.width + 238)
         } else if coordinator.expandingView.type == .battery && coordinator.expandingView.show
             && vm.notchState == .closed && Defaults[.showPowerStatusNotifications]
@@ -363,7 +367,7 @@ struct ContentView: View {
                               gestureProgress: $gestureProgress
                           )
                               .transition(.opacity)
-                      } else if vm.notchState == .closed && !codexActivity.snapshot.activities.isEmpty && !vm.hideOnClosed {
+                      } else if vm.notchState == .closed && hasCodexPresentation && !vm.hideOnClosed {
                           CodexCompactActivityView(
                               notchWidth: vm.closedNotchSize.width,
                               height: displayClosedNotchHeight
