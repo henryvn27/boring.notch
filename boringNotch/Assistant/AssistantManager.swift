@@ -37,6 +37,8 @@ final class AssistantManager: ObservableObject {
         if isUITesting {
             draft = "What does this control do?"
             responseText = "That control changes how quickly spoken replies play. It does not affect dictation speed."
+            suggestedActions = [.openAssistantSettings, .showCodexActivity]
+            lastQuestion = draft
         }
     }
 

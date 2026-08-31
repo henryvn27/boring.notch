@@ -287,6 +287,14 @@ struct ContentView: View {
         .background(dragDetector)
         .preferredColorScheme(.dark)
         .environmentObject(vm)
+        .onAppear {
+            if assistant.isUITesting {
+                coordinator.firstLaunch = false
+                coordinator.helloAnimationRunning = false
+                coordinator.currentView = .assistant
+                _ = vm.open()
+            }
+        }
         .onChange(of: dropInteraction.anyDropZoneTargeting) { _, isTargeted in
             anyDropDebounceTask?.cancel()
 
