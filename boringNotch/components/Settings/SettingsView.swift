@@ -9,7 +9,7 @@ import Sparkle
 import SwiftUI
 import SwiftUIIntrospect
 
-private enum SettingsTab: String, CaseIterable, Identifiable {
+enum SettingsTab: String, CaseIterable, Identifiable {
     case general
     case appearance
     case media
@@ -66,8 +66,12 @@ struct SettingsView: View {
 
     let updaterController: SPUStandardUpdaterController?
 
-    init(updaterController: SPUStandardUpdaterController? = nil) {
+    init(
+        updaterController: SPUStandardUpdaterController? = nil,
+        selectedTab: SettingsTab = .general
+    ) {
         self.updaterController = updaterController
+        _selectedTab = State(initialValue: selectedTab)
     }
 
     var body: some View {

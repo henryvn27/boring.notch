@@ -200,7 +200,7 @@ struct CodexActivityPanel: View {
                 }
                 Spacer()
                 Button {
-                    SettingsWindowController.shared.showWindow()
+                    SettingsWindowController.shared.showWindow(selectedTab: .codex)
                 } label: {
                     Image(systemName: "gearshape")
                 }

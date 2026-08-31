@@ -66,7 +66,16 @@ class SettingsWindowController: NSWindowController {
         window.delegate = self
     }
     
-    func showWindow() {
+    func showWindow(selectedTab: SettingsTab? = nil) {
+        if let selectedTab, let window {
+            window.contentView = NSHostingView(
+                rootView: SettingsView(
+                    updaterController: updaterController,
+                    selectedTab: selectedTab
+                )
+            )
+        }
+
         // Set app to regular mode first
         NSApp.setActivationPolicy(.regular)
         
