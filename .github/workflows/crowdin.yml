@@ -8,6 +8,7 @@ on:
 
 jobs:
   crowdin:
+    if: github.repository == 'TheBoredTeam/boring.notch'
     runs-on: ubuntu-latest
     permissions:
       contents: write
