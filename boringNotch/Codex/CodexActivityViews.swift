@@ -349,33 +349,33 @@ struct CodexActivityPanel: View {
     private func agentStateIcon(_ agent: CodexAgentProgressSnapshot.Agent) -> String {
         if agent.isStale { return "clock.badge.exclamationmark.fill" }
         switch agent.state {
-        case .planning: "circle.dotted"
-        case .working: "circle.fill"
-        case .blocked: "exclamationmark.circle.fill"
-        case .completed: "checkmark.circle.fill"
-        case .failed: "xmark.circle.fill"
+        case .planning: return "circle.dotted"
+        case .working: return "circle.fill"
+        case .blocked: return "exclamationmark.circle.fill"
+        case .completed: return "checkmark.circle.fill"
+        case .failed: return "xmark.circle.fill"
         }
     }
 
     private func agentStateColor(_ agent: CodexAgentProgressSnapshot.Agent) -> Color {
         if agent.isStale { return .orange }
         switch agent.state {
-        case .planning: .white.opacity(0.55)
-        case .working: .effectiveAccent
-        case .blocked: .orange
-        case .completed: .green
-        case .failed: .red
+        case .planning: return .white.opacity(0.55)
+        case .working: return .effectiveAccent
+        case .blocked: return .orange
+        case .completed: return .green
+        case .failed: return .red
         }
     }
 
     private func agentStateLabel(_ agent: CodexAgentProgressSnapshot.Agent) -> String {
         if agent.isStale { return "Stale" }
         switch agent.state {
-        case .planning: "Planning"
-        case .working: "Working"
-        case .blocked: "Blocked"
-        case .completed: "Completed"
-        case .failed: "Failed"
+        case .planning: return "Planning"
+        case .working: return "Working"
+        case .blocked: return "Blocked"
+        case .completed: return "Completed"
+        case .failed: return "Failed"
         }
     }
 
@@ -565,7 +565,7 @@ struct CodexActivityPanel: View {
 
     private func approvalContent(_ request: CodexApprovalRequest, now: Date) -> some View {
         let secondsRemaining = max(0, Int(ceil(request.expiresAt.timeIntervalSince(now))))
-        VStack(alignment: .leading, spacing: 9) {
+        return VStack(alignment: .leading, spacing: 9) {
             HStack(spacing: 8) {
                 Image(systemName: "exclamationmark.shield.fill")
                     .foregroundStyle(.orange)
