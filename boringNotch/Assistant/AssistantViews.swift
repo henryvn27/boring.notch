@@ -105,7 +105,7 @@ struct AssistantPanel: View {
             .accessibilityLabel("Assistant settings")
         }
         .padding(.horizontal, 14)
-        .frame(height: 42)
+        .frame(height: 38)
     }
 
     @ViewBuilder
@@ -207,10 +207,17 @@ struct AssistantPanel: View {
     }
 
     private var responseView: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 6) {
             HStack {
                 Text("Answer").font(.system(size: 11.5, weight: .semibold))
                 Spacer()
+                Button("Codex", systemImage: "arrow.up.right.square") {
+                    manager.perform(.openCodex)
+                }
+                .labelStyle(.titleAndIcon)
+                .buttonStyle(.borderless)
+                .font(.system(size: 10.5, weight: .semibold))
+                .help("Copy this exchange and open Codex")
                 Button(copied ? "Copied" : "Copy", systemImage: copied ? "checkmark" : "doc.on.doc") {
                     copied = manager.copyResponse()
                 }
@@ -224,12 +231,6 @@ struct AssistantPanel: View {
                 .textSelection(.enabled)
                 .fixedSize(horizontal: false, vertical: true)
             actionButtons
-            Button("Continue in Codex", systemImage: "arrow.up.right.square") {
-                manager.perform(.openCodex)
-            }
-            .buttonStyle(.borderless)
-            .font(.system(size: 10.5, weight: .semibold))
-            .help("Copy this exchange and open Codex")
             if !manager.actionConfirmation.isEmpty {
                 Text(manager.actionConfirmation)
                     .font(.system(size: 10))
@@ -243,19 +244,20 @@ struct AssistantPanel: View {
     private var actionButtons: some View {
         let actions = manager.suggestedActions.filter { $0 != .openCodex }
         if !actions.isEmpty {
-            VStack(alignment: .leading, spacing: 5) {
-                Text("Suggested actions")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.55))
-                HStack(spacing: 6) {
-                    ForEach(actions, id: \.self) { action in
-                        Button(action.title, systemImage: action.systemImage) {
-                            manager.perform(action)
-                        }
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
-                        .help("Runs only after you click")
+            HStack(spacing: 6) {
+                ForEach(actions, id: \.self) { action in
+                    Button {
+                        manager.perform(action)
+                    } label: {
+                        Label(action.compactTitle, systemImage: action.systemImage)
+                            .font(.system(size: 10, weight: .semibold))
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(.white.opacity(0.08), in: Capsule())
                     }
+                    .buttonStyle(.plain)
+                    .help("\(action.title). Runs only after you click.")
+                    .accessibilityLabel(action.title)
                 }
             }
         }
@@ -272,7 +274,7 @@ struct AssistantPanel: View {
         .font(.system(size: 10, weight: .medium))
         .foregroundStyle(Color.effectiveAccent)
         .padding(.horizontal, 14)
-        .frame(height: 24)
+        .frame(height: 22)
         .background(Color.effectiveAccent.opacity(0.09))
         .accessibilityElement(children: .combine)
     }
@@ -325,7 +327,7 @@ struct AssistantPanel: View {
             .accessibilityLabel("Send question")
         }
         .padding(.horizontal, 12)
-        .frame(height: 42)
+        .frame(height: 40)
     }
 
     private var headerIcon: String {
@@ -333,7 +335,7 @@ struct AssistantPanel: View {
         case .listening: return "waveform"
         case .processing, .responding: return "sparkles"
         case .failed: return "exclamationmark.triangle.fill"
-        case .idle: return "bubble.left.and.waveform.fill"
+        case .idle: return "waveform.circle.fill"
         }
     }
 

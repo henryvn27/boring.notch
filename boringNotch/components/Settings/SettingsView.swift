@@ -55,7 +55,7 @@ enum SettingsTab: String, CaseIterable, Identifiable {
         case .shelf: "books.vertical"
         case .mirror: "camera"
         case .shortcuts: "keyboard"
-        case .assistant: "bubble.left.and.waveform"
+        case .assistant: "waveform.circle"
         case .codex: "terminal"
         case .advanced: "gearshape.2"
         case .about: "info.circle"
