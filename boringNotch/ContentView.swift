@@ -698,6 +698,7 @@ struct ContentView: View {
 
     private func handleHover(_ hovering: Bool) {
         if coordinator.firstLaunch { return }
+        if assistant.isUITesting { return }
         hoverTask?.cancel()
         
         if hovering {
