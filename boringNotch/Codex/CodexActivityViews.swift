@@ -248,11 +248,43 @@ struct CodexActivityPanel: View {
                     .font(.system(size: 9.5))
                     .foregroundStyle(.white.opacity(0.48))
                     .lineLimit(1)
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(progress.agents.prefix(3)) { agent in
+                        agentProgressRow(agent)
+                    }
+                    if progress.agents.count > 3 {
+                        Text("+\(progress.agents.count - 3) more agents")
+                            .font(.system(size: 9))
+                            .foregroundStyle(.white.opacity(0.42))
+                    }
+                }
             }
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 8)
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .contain)
+    }
+
+    private func agentProgressRow(_ agent: CodexAgentProgressSnapshot.Agent) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: agentStateIcon(agent.state))
+                .font(.system(size: 8, weight: .semibold))
+                .foregroundStyle(agentStateColor(agent.state))
+                .frame(width: 10)
+            Text(agent.title)
+                .font(.system(size: 9.5, weight: .medium))
+                .lineLimit(1)
+            Text("·")
+                .foregroundStyle(.white.opacity(0.28))
+            Text(agent.phase)
+                .font(.system(size: 9.5))
+                .foregroundStyle(.white.opacity(0.55))
+                .lineLimit(1)
+            Spacer(minLength: 0)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(agent.title)
+        .accessibilityValue("\(agentStateLabel(agent.state)), \(agent.phase)")
     }
 
     private func agentSummary(_ agents: [CodexAgentProgressSnapshot.Agent]) -> String {
@@ -262,6 +294,36 @@ struct CodexActivityPanel: View {
         if working > 0 { parts.append("\(working) working") }
         if blocked > 0 { parts.append("\(blocked) blocked") }
         return parts.joined(separator: " · ")
+    }
+
+    private func agentStateIcon(_ state: CodexAgentWorkState) -> String {
+        switch state {
+        case .planning: "circle.dotted"
+        case .working: "circle.fill"
+        case .blocked: "exclamationmark.circle.fill"
+        case .completed: "checkmark.circle.fill"
+        case .failed: "xmark.circle.fill"
+        }
+    }
+
+    private func agentStateColor(_ state: CodexAgentWorkState) -> Color {
+        switch state {
+        case .planning: .white.opacity(0.55)
+        case .working: .effectiveAccent
+        case .blocked: .orange
+        case .completed: .green
+        case .failed: .red
+        }
+    }
+
+    private func agentStateLabel(_ state: CodexAgentWorkState) -> String {
+        switch state {
+        case .planning: "Planning"
+        case .working: "Working"
+        case .blocked: "Blocked"
+        case .completed: "Completed"
+        case .failed: "Failed"
+        }
     }
 
     private var usageView: some View {

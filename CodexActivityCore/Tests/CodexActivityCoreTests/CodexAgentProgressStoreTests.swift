@@ -17,6 +17,10 @@ enum CodexAgentProgressStoreTests {
         try expect(snapshot.checkpointFraction == 2.0 / 3.0)
         try expect(snapshot.checkpointLabel == "2 of 3 checkpoints verified")
         try expect(snapshot.agents.count == 2)
+        try expect(snapshot.agents[0].state == .working)
+        try expect(snapshot.agents[0].phase == "Verify macOS builds")
+        try expect(snapshot.agents[1].state == .completed)
+        try expect(snapshot.agents[1].phase == "Review complete")
     }
 
     private static func hidesNumericProgressForChangingPlans() throws {
