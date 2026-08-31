@@ -108,7 +108,10 @@ struct ContentView: View {
     private var computedChinWidth: CGFloat {
         var chinWidth: CGFloat = vm.closedNotchSize.width
 
-        if shouldDisplayNowPlayingFallbackNotice {
+        if isNotchContentsUITesting && vm.notchState == .closed {
+            let artworkWidth = max(0, displayClosedNotchHeight - 12)
+            chinWidth += artworkWidth + 58 + 20 + 2 * liveActivityEdgeMargin + 2
+        } else if shouldDisplayNowPlayingFallbackNotice {
             chinWidth = nowPlayingFallbackNoticeWidth
         } else if vm.notchState == .closed && hasAssistantPresentation {
             chinWidth = max(chinWidth, vm.closedNotchSize.width + 218)
@@ -387,7 +390,10 @@ struct ContentView: View {
                     .padding(.top, 40)
                     Spacer()
                 } else {
-                    if shouldDisplayNowPlayingFallbackNotice,
+                    if isNotchContentsUITesting && vm.notchState == .closed {
+                        MusicLiveActivity()
+                            .frame(alignment: .center)
+                    } else if shouldDisplayNowPlayingFallbackNotice,
                        let notice = musicManager.nowPlayingNotice {
                         nowPlayingFallbackNotice(notice)
                             .transition(.opacity.combined(with: .scale(scale: 0.96, anchor: .top)))
