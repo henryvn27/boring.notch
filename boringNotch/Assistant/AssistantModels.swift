@@ -66,17 +66,6 @@ enum AssistantSuggestedAction: String, Equatable, Hashable, Sendable {
         }
     }
 
-    var compactTitle: String {
-        switch self {
-        case .openCodex: "Codex"
-        case .showCodexActivity: "Activity"
-        case .showShelf: "Shelf"
-        case .openAssistantSettings: "Settings"
-        case .playPause: "Play/Pause"
-        case .nextTrack: "Next"
-        case .previousTrack: "Previous"
-        }
-    }
 }
 
 enum AssistantInputSanitizer {

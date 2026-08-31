@@ -211,6 +211,7 @@ struct AssistantPanel: View {
             HStack {
                 Text("Answer").font(.system(size: 11.5, weight: .semibold))
                 Spacer()
+                suggestedActionMenu
                 Button("Codex", systemImage: "arrow.up.right.square") {
                     manager.perform(.openCodex)
                 }
@@ -230,7 +231,6 @@ struct AssistantPanel: View {
                 .foregroundStyle(.white.opacity(0.82))
                 .textSelection(.enabled)
                 .fixedSize(horizontal: false, vertical: true)
-            actionButtons
             if !manager.actionConfirmation.isEmpty {
                 Text(manager.actionConfirmation)
                     .font(.system(size: 10))
@@ -241,25 +241,23 @@ struct AssistantPanel: View {
     }
 
     @ViewBuilder
-    private var actionButtons: some View {
+    private var suggestedActionMenu: some View {
         let actions = manager.suggestedActions.filter { $0 != .openCodex }
         if !actions.isEmpty {
-            HStack(spacing: 6) {
+            Menu {
                 ForEach(actions, id: \.self) { action in
-                    Button {
+                    Button(action.title, systemImage: action.systemImage) {
                         manager.perform(action)
-                    } label: {
-                        Label(action.compactTitle, systemImage: action.systemImage)
-                            .font(.system(size: 10, weight: .semibold))
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(.white.opacity(0.08), in: Capsule())
                     }
-                    .buttonStyle(.plain)
-                    .help("\(action.title). Runs only after you click.")
-                    .accessibilityLabel(action.title)
                 }
+            } label: {
+                Label("Actions", systemImage: "bolt")
             }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+            .font(.system(size: 10.5, weight: .semibold))
+            .help("Suggested actions. Nothing runs until you choose one.")
+            .accessibilityLabel("Suggested actions")
         }
     }
 
