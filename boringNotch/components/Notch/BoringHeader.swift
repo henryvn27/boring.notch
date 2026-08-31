@@ -21,8 +21,7 @@ struct BoringHeader: View {
             HStack {
                 if !tvm.isEmpty || coordinator.alwaysShowTabs
                     || assistantEnabled || assistant.hasCompactPresentation
-                    || !codexActivity.snapshot.activities.isEmpty
-                    || codexActivity.progressSnapshot != nil
+                    || codexActivity.displayMode.showsCodex
                 {
                     TabSelectionView()
                 } else if vm.notchState == .open {

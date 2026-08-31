@@ -22,6 +22,23 @@ final class CodexUsageManager: ObservableObject {
     }
 
     func start() {
+        if CommandLine.arguments.contains("--ui-testing-contents") {
+            snapshot = CodexUsageSnapshot(
+                limits: [
+                    CodexUsageLimit(
+                        id: "primary",
+                        name: "Weekly window",
+                        usedPercent: 30,
+                        resetsAt: Date().addingTimeInterval(3 * 24 * 60 * 60),
+                        windowDurationMinutes: 7 * 24 * 60
+                    )
+                ],
+                planType: "pro",
+                fetchedAt: Date()
+            )
+            errorMessage = nil
+            return
+        }
         guard periodicTask == nil else { return }
         refresh()
         periodicTask = Task { [weak self] in

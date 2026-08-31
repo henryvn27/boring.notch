@@ -354,8 +354,8 @@ struct AssistantSettingsView: View {
     var body: some View {
         Form {
             Section("Assistant") {
-                Toggle("Show Assistant in the notch", isOn: $assistantEnabled)
-                Text("Voice and screen access are requested only after you use the matching control.")
+                Toggle("Enable Assistant", isOn: $assistantEnabled)
+                Text("When off, Assistant is removed from the notch and its push-to-talk shortcut does nothing. Voice and screen access are requested only after you use the matching control.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -372,6 +372,7 @@ struct AssistantSettingsView: View {
                     }
                 }
             }
+            .disabled(!assistantEnabled)
 
             Section("Privacy") {
                 LabeledContent("Screen context", value: "Per request")

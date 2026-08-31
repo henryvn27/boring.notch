@@ -220,11 +220,12 @@ enum OSDControlSource: String, CaseIterable, Identifiable, Defaults.Serializable
 
 extension Defaults.Keys {
     // MARK: Assistant
-    static let assistantEnabled = Key<Bool>("assistantEnabled", default: true)
+    static let assistantEnabled = Key<Bool>("assistantEnabled", default: false)
     static let assistantSpeakReplies = Key<Bool>("assistantSpeakReplies", default: true)
     static let assistantSpeechRate = Key<Double>("assistantSpeechRate", default: 0.5)
 
     // MARK: Codex
+    static let codexDisplayMode = Key<CodexDisplayMode>("codexDisplayMode", default: .off)
     static let codexActivityEnabled = Key<Bool>("codexActivityEnabled", default: false)
     static let codexShowQuota = Key<Bool>("codexShowQuota", default: true)
     static let codexAutoOpenApprovals = Key<Bool>("codexAutoOpenApprovals", default: true)
