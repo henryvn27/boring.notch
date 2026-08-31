@@ -293,6 +293,11 @@ struct ContentView: View {
                 coordinator.helloAnimationRunning = false
                 coordinator.currentView = .assistant
                 _ = vm.open()
+                Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(750))
+                    coordinator.currentView = .assistant
+                    _ = vm.open()
+                }
             }
         }
         .onChange(of: dropInteraction.anyDropZoneTargeting) { _, isTargeted in
