@@ -112,7 +112,7 @@ struct CodexCompactActivityView: View {
             Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
         case .working:
             if reduceMotion {
-                Image(systemName: "circle.fill").foregroundStyle(.effectiveAccent)
+                Image(systemName: "circle.fill").foregroundStyle(Color.effectiveAccent)
             } else {
                 ProgressView().controlSize(.mini).tint(.white.opacity(0.75))
             }
@@ -560,7 +560,7 @@ struct CodexActivityPanel: View {
         switch state {
         case .working:
             if reduceMotion {
-                Image(systemName: "circle.fill").foregroundStyle(.effectiveAccent)
+                Image(systemName: "circle.fill").foregroundStyle(Color.effectiveAccent)
             } else {
                 ProgressView().controlSize(.mini).tint(.white.opacity(0.72))
             }
