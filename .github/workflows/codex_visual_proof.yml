@@ -42,6 +42,8 @@ jobs:
             echo '::error::The release app was not found in DerivedData.'
             exit 1
           fi
+          codesign --force --deep --sign - "$app_path"
+          codesign --verify --deep --strict --verbose=2 "$app_path"
           ditto -c -k --sequesterRsrc --keepParent "$app_path" "$RUNNER_TEMP/boringNotch.app.zip"
 
       - name: Upload app

@@ -25,6 +25,28 @@ struct CodexSettingsView: View {
     var body: some View {
         Form {
             Section {
+                Toggle(
+                    "Monitor Codex activity on this Mac",
+                    isOn: Binding(
+                        get: { manager.isActivityEnabled },
+                        set: { enabled in
+                            do {
+                                try manager.setActivityEnabled(enabled)
+                                integrationError = nil
+                                refreshDiagnostics()
+                            } catch {
+                                integrationError = error.localizedDescription
+                            }
+                        }
+                    )
+                )
+            } header: {
+                Text("Activity access")
+            } footer: {
+                Text("When enabled, boring.notch observes local Codex lifecycle metadata and may read token counters or request official quota. It does not retain prompts or tool input in activity checkpoints. Existing installations stay enabled; new installs wait for your choice.")
+            }
+
+            Section {
                 LabeledContent("Hooks", value: manager.hookStatus.summary)
                 LabeledContent("Hook trust", value: manager.hookTrust.state.summary)
                 LabeledContent("Self-test", value: manager.selfTestStatus)
@@ -90,7 +112,7 @@ struct CodexSettingsView: View {
                 Button(usage.isRefreshing ? "Refreshing Quota…" : "Refresh Official Quota") {
                     usage.refresh()
                 }
-                .disabled(usage.isRefreshing)
+                .disabled(usage.isRefreshing || !manager.isActivityEnabled)
                 if let error = usage.errorMessage {
                     Text(error).font(.caption).foregroundStyle(.secondary)
                 }
@@ -99,6 +121,7 @@ struct CodexSettingsView: View {
             } footer: {
                 Text("Quota percentages describe account capacity only. boring.notch never treats them as task-completion estimates. Approval timeout changes apply after restarting the app.")
             }
+            .disabled(!manager.isActivityEnabled)
 
             Section {
                 Toggle("Enable Caps Lock signaling", isOn: $capsLockSignals)
@@ -126,6 +149,7 @@ struct CodexSettingsView: View {
             } footer: {
                 Text("Signals always restore the original Caps Lock state. Approval attention remains inverted only while an exact request is pending. macOS may require Input Monitoring or Accessibility permission.")
             }
+            .disabled(!manager.isActivityEnabled)
 
             Section {
                 Toggle("Estimate API-price equivalent from local transcripts", isOn: $localCostEstimate)
@@ -172,6 +196,7 @@ struct CodexSettingsView: View {
             } footer: {
                 Text("The local number is an API-price equivalent, not a subscription bill. It reads token counters only and never retains prompt or tool content. The reset forecast is opt-in network data from an attributed third party.")
             }
+            .disabled(!manager.isActivityEnabled)
 
             ProviderAccountsSettingsSection()
 
@@ -189,6 +214,7 @@ struct CodexSettingsView: View {
                 }
                 HStack {
                     Button("Refresh Checkpoint") { manager.refreshAgentProgress() }
+                        .disabled(!manager.isActivityEnabled)
                     Spacer()
                     Link(
                         "Protocol",
@@ -198,7 +224,7 @@ struct CodexSettingsView: View {
             } header: {
                 Text("Agent progress")
             } footer: {
-                Text("boring.notch shows one aggregate bar only for a locked plan, and computes it from evidence-backed verified milestones. Agents never submit raw percentages or individual bars.")
+                Text("boring.notch shows one aggregate bar only for a current, locked plan, computed from agent-reported verified milestones with timestamped evidence. It exposes the latest evidence label but does not rerun the underlying check. Agents never submit raw percentages or individual bars.")
             }
 
             Section {

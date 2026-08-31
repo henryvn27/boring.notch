@@ -41,11 +41,21 @@ enum CodexMilestoneState: String, Codable, Sendable {
 }
 
 struct CodexAgentProgressSnapshot: Equatable, Sendable {
+    struct Milestone: Equatable, Sendable, Identifiable {
+        let id: String
+        let title: String
+        let state: CodexMilestoneState
+        let evidence: String?
+        let evidenceAt: Date?
+    }
+
     struct Agent: Equatable, Sendable, Identifiable {
         let id: String
         let title: String
         let state: CodexAgentWorkState
         let phase: String
+        let updatedAt: Date
+        let isStale: Bool
     }
 
     let taskID: String
@@ -56,23 +66,46 @@ struct CodexAgentProgressSnapshot: Equatable, Sendable {
     let planLocked: Bool
     let verifiedMilestones: Int
     let totalMilestones: Int
+    let milestones: [Milestone]
     let agents: [Agent]
     let updatedAt: Date
     let isStale: Bool
 
+    var isComplete: Bool {
+        state == .completed && planLocked && totalMilestones > 0
+            && verifiedMilestones == totalMilestones && !isStale
+    }
+
     var checkpointFraction: Double? {
-        guard planLocked, totalMilestones >= 2, !isStale else { return nil }
+        guard planLocked, totalMilestones >= 2, verifiedMilestones < totalMilestones,
+              state != .completed, state != .failed, !isStale
+        else { return nil }
         return Double(verifiedMilestones) / Double(totalMilestones)
     }
 
     var checkpointLabel: String {
-        guard planLocked, totalMilestones > 0 else { return "Plan is still changing" }
+        if isStale { return "Checkpoint is stale" }
+        guard planLocked, totalMilestones > 0 else {
+            return totalMilestones > 0
+                ? "Plan changed · \(totalMilestones) required"
+                : "Plan is still changing"
+        }
+        if isComplete { return "\(totalMilestones) checks verified" }
+        if verifiedMilestones == totalMilestones {
+            return "\(totalMilestones) checks verified · finishing"
+        }
         return "\(verifiedMilestones) of \(totalMilestones) checkpoints verified"
+    }
+
+    var latestVerifiedMilestone: Milestone? {
+        milestones.filter { $0.state == .verified }.max {
+            ($0.evidenceAt ?? .distantPast) < ($1.evidenceAt ?? .distantPast)
+        }
     }
 }
 
 struct CodexAgentProgressStore: Sendable {
-    static let schemaVersion = 1
+    static let schemaVersion = 2
     static let maximumDocumentSize = 65_536
     static let staleInterval: TimeInterval = 5 * 60
     static let retentionInterval: TimeInterval = 24 * 60 * 60
@@ -98,14 +131,16 @@ struct CodexAgentProgressStore: Sendable {
     }
 
     func write(_ data: Data, now: Date = Date()) throws {
-        _ = try Self.decode(data, now: now)
+        let next = try Self.validatedDocument(data, now: now).document
         let directory = fileURL.deletingLastPathComponent()
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         guard chmod(directory.path, 0o700) == 0 else {
             throw CodexAgentProgressError.writeFailed(errno)
         }
         if FileManager.default.fileExists(atPath: fileURL.path) {
-            try validatePrivateFile(at: fileURL)
+            let previousData = try readPrivateFile()
+            let previous = try Self.validatedDocument(previousData, now: now).document
+            try Self.validateTransition(from: previous, to: next)
         }
         let temporaryURL = directory.appendingPathComponent(".agent-progress-\(UUID().uuidString).tmp")
         do {
@@ -129,11 +164,18 @@ struct CodexAgentProgressStore: Sendable {
     }
 
     static func decode(_ data: Data, now: Date = Date()) throws -> CodexAgentProgressSnapshot {
+        try validatedDocument(data, now: now).snapshot
+    }
+
+    private static func validatedDocument(
+        _ data: Data,
+        now: Date
+    ) throws -> (document: Document, snapshot: CodexAgentProgressSnapshot) {
         guard data.count <= maximumDocumentSize else { throw CodexAgentProgressError.oversized }
         guard let raw = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             throw CodexAgentProgressError.malformed
         }
-        try rejectSensitiveOrPercentageFields(raw)
+        try validateSchemaKeys(raw)
 
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
@@ -154,19 +196,32 @@ struct CodexAgentProgressStore: Sendable {
         }
         var milestoneIDs = Set<String>()
         var verified = 0
-        for milestone in document.milestones {
+        let milestones = try document.milestones.map { milestone -> CodexAgentProgressSnapshot.Milestone in
             try validate(milestone.id, field: "milestone ID", limit: 80)
             try validate(milestone.title, field: "milestone title", limit: 160)
             guard milestoneIDs.insert(milestone.id).inserted else {
                 throw CodexAgentProgressError.invalidField("milestone ID")
             }
             if milestone.state == .verified {
-                guard let evidence = milestone.evidence else {
+                guard let evidence = milestone.evidence, let evidenceAt = milestone.evidenceAt else {
                     throw CodexAgentProgressError.invalidField("verified milestone evidence")
                 }
                 try validate(evidence, field: "verified milestone evidence", limit: 200)
+                try validateTimestamp(evidenceAt, field: "milestone evidence timestamp", now: now)
+                guard evidenceAt <= document.updatedAt else {
+                    throw CodexAgentProgressError.invalidField("milestone evidence timestamp")
+                }
                 verified += 1
+            } else if milestone.evidence != nil || milestone.evidenceAt != nil {
+                throw CodexAgentProgressError.invalidField("unverified milestone evidence")
             }
+            return .init(
+                id: milestone.id,
+                title: milestone.title,
+                state: milestone.state,
+                evidence: milestone.evidence,
+                evidenceAt: milestone.evidenceAt
+            )
         }
         guard document.agents.count <= 20 else {
             throw CodexAgentProgressError.invalidField("agents")
@@ -179,13 +234,30 @@ struct CodexAgentProgressStore: Sendable {
             guard agentIDs.insert(agent.id).inserted else {
                 throw CodexAgentProgressError.invalidField("agent ID")
             }
-            return .init(id: agent.id, title: agent.title, state: agent.state, phase: agent.phase)
+            try validateTimestamp(agent.updatedAt, field: "agent timestamp", now: now)
+            guard agent.updatedAt <= document.updatedAt else {
+                throw CodexAgentProgressError.invalidField("agent timestamp")
+            }
+            return .init(
+                id: agent.id,
+                title: agent.title,
+                state: agent.state,
+                phase: agent.phase,
+                updatedAt: agent.updatedAt,
+                isStale: isActive(agent.state) && now.timeIntervalSince(agent.updatedAt) > staleInterval
+            )
         }
-        guard document.updatedAt <= now.addingTimeInterval(5 * 60) else {
-            throw CodexAgentProgressError.futureTimestamp
+        try validateTimestamp(document.updatedAt, field: "timestamp", now: now)
+        if document.state == .completed {
+            guard document.planLocked, !document.milestones.isEmpty,
+                  verified == document.milestones.count,
+                  agents.allSatisfy({ $0.state == .completed })
+            else { throw CodexAgentProgressError.invalidField("completed task state") }
         }
-        let active = document.state == .planning || document.state == .working || document.state == .blocked
-        return CodexAgentProgressSnapshot(
+        let isStale = isActive(document.state)
+            && (now.timeIntervalSince(document.updatedAt) > staleInterval
+                || agents.contains(where: \.isStale))
+        let snapshot = CodexAgentProgressSnapshot(
             taskID: document.taskID,
             title: document.title,
             state: document.state,
@@ -194,10 +266,12 @@ struct CodexAgentProgressStore: Sendable {
             planLocked: document.planLocked,
             verifiedMilestones: verified,
             totalMilestones: document.milestones.count,
+            milestones: milestones,
             agents: agents,
             updatedAt: document.updatedAt,
-            isStale: active && now.timeIntervalSince(document.updatedAt) > staleInterval
+            isStale: isStale
         )
+        return (document, snapshot)
     }
 
     private func readPrivateFile() throws -> Data {
@@ -234,18 +308,80 @@ struct CodexAgentProgressStore: Sendable {
         else { throw CodexAgentProgressError.invalidField(field) }
     }
 
-    private static func rejectSensitiveOrPercentageFields(_ object: Any) throws {
-        let forbidden = Set(["percent", "percentage", "progress", "prompt", "toolinput", "operation"])
-        if let dictionary = object as? [String: Any] {
-            for (key, value) in dictionary {
-                if forbidden.contains(key.lowercased()) {
-                    throw CodexAgentProgressError.invalidField(key)
-                }
-                try rejectSensitiveOrPercentageFields(value)
-            }
-        } else if let array = object as? [Any] {
-            for value in array { try rejectSensitiveOrPercentageFields(value) }
+    private static func validateTimestamp(_ value: Date, field: String, now: Date) throws {
+        guard value <= now.addingTimeInterval(5 * 60) else {
+            throw field == "timestamp"
+                ? CodexAgentProgressError.futureTimestamp
+                : CodexAgentProgressError.invalidField(field)
         }
+    }
+
+    private static func validateSchemaKeys(_ root: [String: Any]) throws {
+        try validateKeys(root, allowed: [
+            "schemaVersion", "taskID", "title", "state", "phase", "planRevision",
+            "planLocked", "milestones", "agents", "updatedAt",
+        ])
+        guard let milestones = root["milestones"] as? [Any],
+              let agents = root["agents"] as? [Any]
+        else { throw CodexAgentProgressError.malformed }
+        for value in milestones {
+            guard let milestone = value as? [String: Any] else {
+                throw CodexAgentProgressError.malformed
+            }
+            try validateKeys(
+                milestone,
+                allowed: ["id", "title", "state", "evidence", "evidenceAt"]
+            )
+        }
+        for value in agents {
+            guard let agent = value as? [String: Any] else {
+                throw CodexAgentProgressError.malformed
+            }
+            try validateKeys(agent, allowed: ["id", "title", "state", "phase", "updatedAt"])
+        }
+    }
+
+    private static func validateKeys(_ value: [String: Any], allowed: Set<String>) throws {
+        if let invalid = Set(value.keys).subtracting(allowed).sorted().first {
+            throw CodexAgentProgressError.invalidField(invalid)
+        }
+    }
+
+    private static func validateTransition(from previous: Document, to next: Document) throws {
+        guard previous.taskID == next.taskID else { return }
+        guard next.planRevision >= previous.planRevision else {
+            throw CodexAgentProgressError.invalidField("plan revision")
+        }
+        guard next.updatedAt >= previous.updatedAt else {
+            throw CodexAgentProgressError.invalidField("timestamp")
+        }
+
+        let planChanged = planIdentity(previous) != planIdentity(next)
+        let reopened = !verifiedIDs(previous).subtracting(verifiedIDs(next)).isEmpty
+        let terminalReopened = isTerminal(previous.state) && next.state != previous.state
+        let requiresRevision = planChanged || reopened || terminalReopened
+        if requiresRevision && next.planRevision == previous.planRevision {
+            throw CodexAgentProgressError.invalidField("plan revision")
+        }
+        if requiresRevision && next.planRevision > previous.planRevision && next.planLocked {
+            throw CodexAgentProgressError.invalidField("plan lock")
+        }
+    }
+
+    private static func planIdentity(_ document: Document) -> [String] {
+        document.milestones.map { "\($0.id)\u{1F}\($0.title)" }.sorted()
+    }
+
+    private static func verifiedIDs(_ document: Document) -> Set<String> {
+        Set(document.milestones.filter { $0.state == .verified }.map(\.id))
+    }
+
+    private static func isActive(_ state: CodexAgentWorkState) -> Bool {
+        state == .planning || state == .working || state == .blocked
+    }
+
+    private static func isTerminal(_ state: CodexAgentWorkState) -> Bool {
+        state == .completed || state == .failed
     }
 }
 
@@ -266,6 +402,7 @@ private struct Document: Decodable {
         let title: String
         let state: CodexMilestoneState
         let evidence: String?
+        let evidenceAt: Date?
     }
 
     struct Agent: Decodable {
@@ -273,5 +410,6 @@ private struct Document: Decodable {
         let title: String
         let state: CodexAgentWorkState
         let phase: String
+        let updatedAt: Date
     }
 }

@@ -220,6 +220,7 @@ enum OSDControlSource: String, CaseIterable, Identifiable, Defaults.Serializable
 
 extension Defaults.Keys {
     // MARK: Codex
+    static let codexActivityEnabled = Key<Bool>("codexActivityEnabled", default: false)
     static let codexShowQuota = Key<Bool>("codexShowQuota", default: true)
     static let codexAutoOpenApprovals = Key<Bool>("codexAutoOpenApprovals", default: true)
     static let codexApprovalTimeout = Key<Double>("codexApprovalTimeout", default: 30)

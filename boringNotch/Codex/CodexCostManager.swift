@@ -50,6 +50,10 @@ final class CodexCostManager: ObservableObject {
         refreshTask?.cancel()
         refreshTask = nil
         isRefreshing = false
+        estimate = nil
+        estimateError = nil
+        forecast = nil
+        forecastError = nil
     }
 
     func refresh() {

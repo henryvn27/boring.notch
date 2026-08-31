@@ -75,3 +75,61 @@ public struct ActivitySnapshot: Codable, Equatable, Sendable {
         self.pendingApproval = pendingApproval
     }
 }
+
+enum CodexActivityPresentationState: Equatable, Sendable {
+    case approvalRequired
+    case failed
+    case stale
+    case blocked
+    case working
+    case completed
+    case idle
+}
+
+enum CodexActivityPresentation {
+    static func resolve(
+        activity snapshot: ActivitySnapshot,
+        progress: CodexAgentProgressSnapshot?,
+        hasApproval: Bool
+    ) -> CodexActivityPresentationState {
+        let activityStates = snapshot.activities.map(\.state)
+        if hasApproval || snapshot.pendingApproval != nil
+            || activityStates.contains(.approvalRequired)
+        {
+            return .approvalRequired
+        }
+        if activityStates.contains(.failed) || progress?.state == .failed
+            || progress?.agents.contains(where: { $0.state == .failed }) == true
+        {
+            return .failed
+        }
+        if snapshot.availability == .stale || progress?.isStale == true
+            || progress?.agents.contains(where: \.isStale) == true
+        {
+            return .stale
+        }
+        if progress?.state == .blocked
+            || progress?.agents.contains(where: { $0.state == .blocked }) == true
+        {
+            return .blocked
+        }
+        if activityStates.contains(.working)
+            || progress?.state == .planning || progress?.state == .working
+            || progress?.agents.contains(where: {
+                $0.state == .planning || $0.state == .working
+            }) == true
+        {
+            return .working
+        }
+        if progress?.isComplete == true || activityStates.contains(.completed) {
+            return .completed
+        }
+        return .idle
+    }
+}
+
+enum CodexActivityConsentPolicy {
+    static func resolved(explicitValue: Bool?, integrationInstalled: Bool) -> Bool {
+        explicitValue ?? integrationInstalled
+    }
+}

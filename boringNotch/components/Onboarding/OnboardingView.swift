@@ -257,7 +257,10 @@ private struct CodexIntegrationOnboardingView: View {
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
                 .keyboardShortcut(.defaultAction)
-                Button("Skip for Now", action: onContinue)
+                Button("Skip for Now") {
+                    try? manager.setActivityEnabled(false)
+                    onContinue()
+                }
                     .buttonStyle(.plain)
             }
             .padding(.bottom, 24)
