@@ -37,6 +37,9 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         - NotchDrop Copyright (c) 2024 Lakr Aream
         - Cowlick, Copyright (c) 2026 Cowlick contributors
           https://github.com/henryvn27/cowlick
+        - Clicky, Copyright (c) 2026 Farza
+          https://github.com/farzaa/clicky
+          adapted from commit a80fa80721a8aebe51a170a7780705024ebc6e46
 -----------------------------------------------------------------------------
 
 Permission is hereby granted, free of charge, to any person obtaining a copy

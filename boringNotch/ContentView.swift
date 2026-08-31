@@ -24,6 +24,7 @@ struct ContentView: View {
     @ObservedObject var brightnessManager = BrightnessManager.shared
     @ObservedObject var volumeManager = VolumeManager.shared
     @ObservedObject var codexActivity = CodexActivityManager.shared
+    @ObservedObject var assistant = AssistantManager.shared
     @State private var hoverTask: Task<Void, Never>?
     @State private var isHovering: Bool = false
     @State private var anyDropDebounceTask: Task<Void, Never>?
@@ -38,6 +39,7 @@ struct ContentView: View {
     @Namespace var albumArtNamespace
 
     @Default(.showNotHumanFace) var showNotHumanFace
+    @Default(.assistantEnabled) var assistantEnabled
 
     // Use standardized animations from StandardAnimations enum
     private let animationSpring = StandardAnimations.interactive
@@ -48,6 +50,10 @@ struct ContentView: View {
 
     private var hasCodexPresentation: Bool {
         !codexActivity.snapshot.activities.isEmpty || codexActivity.progressSnapshot != nil
+    }
+
+    private var hasAssistantPresentation: Bool {
+        assistantEnabled && assistant.hasCompactPresentation
     }
 
     // MARK: - Corner Radius Scaling
@@ -96,6 +102,8 @@ struct ContentView: View {
 
         if shouldDisplayNowPlayingFallbackNotice {
             chinWidth = nowPlayingFallbackNoticeWidth
+        } else if vm.notchState == .closed && hasAssistantPresentation {
+            chinWidth = max(chinWidth, vm.closedNotchSize.width + 218)
         } else if vm.notchState == .closed && hasCodexPresentation {
             chinWidth = max(chinWidth, vm.closedNotchSize.width + 238)
         } else if coordinator.expandingView.type == .battery && coordinator.expandingView.show
@@ -306,6 +314,11 @@ struct ContentView: View {
                 }
             }
         }
+        .onChange(of: assistantEnabled) { _, isEnabled in
+            if !isEnabled && coordinator.currentView == .assistant {
+                coordinator.currentView = .home
+            }
+        }
     }
 
     @ViewBuilder
@@ -367,6 +380,16 @@ struct ContentView: View {
                               gestureProgress: $gestureProgress
                           )
                               .transition(.opacity)
+                      } else if vm.notchState == .closed && hasAssistantPresentation && !vm.hideOnClosed {
+                          AssistantCompactActivityView(
+                              notchWidth: vm.closedNotchSize.width,
+                              height: displayClosedNotchHeight
+                          ) {
+                              if vm.open() {
+                                  coordinator.currentView = .assistant
+                              }
+                          }
+                          .transition(.opacity.combined(with: .scale(scale: 0.96, anchor: .top)))
                       } else if vm.notchState == .closed && hasCodexPresentation && !vm.hideOnClosed {
                           CodexCompactActivityView(
                               notchWidth: vm.closedNotchSize.width,
@@ -451,6 +474,8 @@ struct ContentView: View {
                             dropInteraction: vm.dropInteraction,
                             animation: vm.animation
                         )
+                    case .assistant:
+                        AssistantPanel()
                     case .codex:
                         CodexActivityPanel()
                     }

@@ -18,14 +18,19 @@ struct TabModel: Identifiable {
 let tabs = [
     TabModel(label: "Home", icon: "house.fill", view: .home),
     TabModel(label: "Shelf", icon: "tray.fill", view: .shelf),
+    TabModel(label: "Assistant", icon: "bubble.left.and.waveform.fill", view: .assistant),
     TabModel(label: "Codex", icon: "terminal.fill", view: .codex)
 ]
 
 struct TabSelectionView: View {
     @ObservedObject var coordinator = BoringViewCoordinator.shared
+    @Default(.assistantEnabled) private var assistantEnabled
     @Namespace var animation
     private var visibleTabs: [TabModel] {
-        Defaults[.boringShelf] ? tabs : tabs.filter { $0.view != .shelf }
+        tabs.filter { tab in
+            (tab.view != .shelf || Defaults[.boringShelf])
+                && (tab.view != .assistant || assistantEnabled)
+        }
     }
     var body: some View {
         HStack(spacing: 0) {
