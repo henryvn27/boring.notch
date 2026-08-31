@@ -22,6 +22,7 @@ final class AssistantManager: ObservableObject {
     private let voiceCaptureService: AssistantVoiceCaptureService
     private let speechService: AssistantSpeechService
     private var requestTask: Task<Void, Never>?
+    private var voiceStartTask: Task<Void, Never>?
     private var voiceSessionID: UUID?
     private var lastQuestion = ""
 
@@ -69,6 +70,16 @@ final class AssistantManager: ObservableObject {
         }
     }
 
+    func beginPushToTalk() {
+        guard !phase.isBusy else { return }
+        startListening()
+    }
+
+    func endPushToTalk() {
+        guard phase == .listening else { return }
+        finishListening()
+    }
+
     func submitDraft() {
         submit(question: draft)
     }
@@ -76,6 +87,8 @@ final class AssistantManager: ObservableObject {
     func cancel() {
         requestTask?.cancel()
         requestTask = nil
+        voiceStartTask?.cancel()
+        voiceStartTask = nil
         voiceSessionID = nil
         voiceCaptureService.cancel()
         speechService.stop()
@@ -159,7 +172,8 @@ final class AssistantManager: ObservableObject {
         liveTranscript = ""
         phase = .listening
 
-        Task {
+        voiceStartTask?.cancel()
+        voiceStartTask = Task {
             do {
                 try await voiceCaptureService.start(
                     onUpdate: { [weak self] transcript in
@@ -168,6 +182,7 @@ final class AssistantManager: ObservableObject {
                     },
                     onFinal: { [weak self] transcript in
                         guard let self, voiceSessionID == sessionID else { return }
+                        voiceStartTask = nil
                         voiceSessionID = nil
                         voiceCaptureService.cancel()
                         draft = transcript
@@ -175,11 +190,20 @@ final class AssistantManager: ObservableObject {
                     },
                     onError: { [weak self] error in
                         guard let self, voiceSessionID == sessionID else { return }
+                        voiceStartTask = nil
                         fail(error)
                     }
                 )
+                guard voiceSessionID == sessionID else {
+                    voiceCaptureService.cancel()
+                    return
+                }
+                voiceStartTask = nil
+            } catch is CancellationError {
+                return
             } catch {
                 guard voiceSessionID == sessionID else { return }
+                voiceStartTask = nil
                 fail(error)
             }
         }
@@ -187,6 +211,8 @@ final class AssistantManager: ObservableObject {
 
     private func finishListening() {
         let sessionID = voiceSessionID
+        voiceStartTask?.cancel()
+        voiceStartTask = nil
         voiceCaptureService.stop()
         Task {
             try? await Task.sleep(for: .seconds(1.2))
@@ -213,6 +239,8 @@ final class AssistantManager: ObservableObject {
         isUsingScreenContext = shouldCaptureScreen
         requestTask?.cancel()
         voiceSessionID = nil
+        voiceStartTask?.cancel()
+        voiceStartTask = nil
         voiceCaptureService.cancel()
         speechService.stop()
         liveTranscript = ""
@@ -262,6 +290,8 @@ final class AssistantManager: ObservableObject {
 
     private func fail(_ error: Error) {
         voiceSessionID = nil
+        voiceStartTask?.cancel()
+        voiceStartTask = nil
         voiceCaptureService.cancel()
         liveTranscript = ""
         isUsingScreenContext = false

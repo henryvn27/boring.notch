@@ -200,9 +200,11 @@ final class AssistantVoiceCaptureService {
         guard await requestMicrophonePermission() else {
             throw AssistantServiceError.microphoneDenied
         }
+        try Task.checkCancellation()
         guard await requestSpeechRecognitionPermission() else {
             throw AssistantServiceError.speechRecognitionDenied
         }
+        try Task.checkCancellation()
         guard
             let recognizer = preferredRecognizer(),
             recognizer.isAvailable,
@@ -210,6 +212,7 @@ final class AssistantVoiceCaptureService {
         else {
             throw AssistantServiceError.speechRecognitionUnavailable
         }
+        try Task.checkCancellation()
 
         cancel()
         latestTranscript = ""

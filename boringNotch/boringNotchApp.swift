@@ -805,6 +805,36 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
 
+        KeyboardShortcuts.onKeyDown(for: .assistantPushToTalk) { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self, Defaults[.assistantEnabled] else { return }
+
+                let mouseLocation = NSEvent.mouseLocation
+                var viewModel = self.vm
+                if Defaults[.showOnAllDisplays] {
+                    for screen in NSScreen.screens where screen.frame.contains(mouseLocation) {
+                        if let uuid = screen.displayUUID,
+                           let screenViewModel = self.viewModels[uuid] {
+                            viewModel = screenViewModel
+                            break
+                        }
+                    }
+                }
+
+                self.closeNotchTask?.cancel()
+                self.closeNotchTask = nil
+                self.coordinator.currentView = .assistant
+                _ = viewModel.open()
+                AssistantManager.shared.beginPushToTalk()
+            }
+        }
+
+        KeyboardShortcuts.onKeyUp(for: .assistantPushToTalk) {
+            Task { @MainActor in
+                AssistantManager.shared.endPushToTalk()
+            }
+        }
+
         // Sync notch height with real value on app launch if mode is matchRealNotchSize
         syncNotchHeightIfNeeded()
         
