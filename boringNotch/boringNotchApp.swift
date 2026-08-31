@@ -75,6 +75,7 @@ final class CodexActivityManager: ObservableObject {
     @Published private(set) var progressError: String?
     @Published private(set) var approvalRequests: [CodexApprovalRequest] = []
     @Published private(set) var isActivityEnabled = false
+    let isUITesting = CommandLine.arguments.contains("--ui-testing")
 
     private var reducer = CodexActivityReducer()
     private var nextLocalSequence = 0
@@ -200,6 +201,11 @@ final class CodexActivityManager: ObservableObject {
 
     func refreshCodexIntegrationStatus() {
         hookStatus = hookInstaller.status()
+    }
+
+    func retryActivityServices() throws {
+        stopActivityServices()
+        try startActivityServices()
     }
 
     func refreshAgentProgress() {

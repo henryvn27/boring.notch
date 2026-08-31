@@ -58,7 +58,7 @@ struct CodexCompactActivityView: View {
         )
     }
     private var displayName: String {
-        activity?.projectName ?? manager.progressSnapshot?.title ?? "Codex"
+        manager.progressSnapshot?.title ?? activity?.projectName ?? "Codex"
     }
 
     var body: some View {
@@ -111,7 +111,11 @@ struct CodexCompactActivityView: View {
         case .completed:
             Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
         case .working:
-            ProgressView().controlSize(.mini).tint(.white.opacity(0.75))
+            if reduceMotion {
+                Image(systemName: "circle.fill").foregroundStyle(.effectiveAccent)
+            } else {
+                ProgressView().controlSize(.mini).tint(.white.opacity(0.75))
+            }
         case .idle:
             Image(systemName: "terminal").foregroundStyle(.secondary)
         }
@@ -165,6 +169,8 @@ struct CodexActivityPanel: View {
     @ObservedObject private var cost = CodexCostManager.shared
     @Default(.codexShowQuota) private var showQuota
     @State private var integrationError: String?
+    @State private var copiedApprovalID: UUID?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         Group {
@@ -198,7 +204,7 @@ struct CodexActivityPanel: View {
                 } label: {
                     Image(systemName: "gearshape")
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.borderless)
                 .help("Codex settings")
                 .accessibilityLabel("Codex settings")
             }
@@ -217,6 +223,16 @@ struct CodexActivityPanel: View {
                         }
                         .padding(.horizontal, 14)
                         .padding(.vertical, 7)
+                        if manager.snapshot.activities.count > 5 {
+                            Text("+\(manager.snapshot.activities.count - 5) more sessions")
+                                .font(.system(size: 9.5))
+                                .foregroundStyle(.white.opacity(0.62))
+                                .padding(.horizontal, 14)
+                                .padding(.bottom, 7)
+                                .accessibilityLabel(
+                                    "\(manager.snapshot.activities.count - 5) more Codex sessions"
+                                )
+                        }
                     }
 
                     if let progress = manager.progressSnapshot {
@@ -226,8 +242,17 @@ struct CodexActivityPanel: View {
                         agentProgressView(progress)
                     }
 
-                    if manager.snapshot.activities.isEmpty && manager.progressSnapshot == nil {
+                    if manager.snapshot.activities.isEmpty && manager.progressSnapshot == nil
+                        && manager.progressError == nil
+                    {
                         emptyState
+                    }
+
+                    if let progressError = manager.progressError {
+                        if !manager.snapshot.activities.isEmpty || manager.progressSnapshot != nil {
+                            Divider().overlay(.white.opacity(0.12))
+                        }
+                        progressErrorView(progressError)
                     }
 
                     if manager.isActivityEnabled && showQuota
@@ -238,6 +263,7 @@ struct CodexActivityPanel: View {
                     }
 
                     if manager.isActivityEnabled
+                        && !manager.isUITesting
                         && (!manager.hookStatus.isHealthy
                             || manager.bridgeError != nil || integrationError != nil)
                     {
@@ -400,7 +426,7 @@ struct CodexActivityPanel: View {
                     } label: {
                         Image(systemName: "arrow.clockwise")
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.borderless)
                     .help("Refresh Codex quota")
                     .accessibilityLabel("Refresh Codex quota")
                 }
@@ -488,6 +514,29 @@ struct CodexActivityPanel: View {
         .accessibilityElement(children: .combine)
     }
 
+    private func progressErrorView(_ error: String) -> some View {
+        HStack(spacing: 9) {
+            Image(systemName: "doc.badge.exclamationmark")
+                .foregroundStyle(.orange)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Agent checkpoint unavailable")
+                    .font(.system(size: 11.5, weight: .semibold))
+                Text(error)
+                    .font(.system(size: 10))
+                    .foregroundStyle(.white.opacity(0.68))
+                    .lineLimit(2)
+            }
+            Spacer()
+            Button("Retry") { manager.refreshAgentProgress() }
+                .controlSize(.small)
+                .buttonStyle(.bordered)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+        .accessibilityElement(children: .contain)
+    }
+
     private func activityRow(_ activity: ActivitySnapshot.Activity) -> some View {
         HStack(spacing: 10) {
             rowIcon(activity.state).frame(width: 16)
@@ -509,7 +558,12 @@ struct CodexActivityPanel: View {
     @ViewBuilder
     private func rowIcon(_ state: ActivitySnapshot.Activity.State) -> some View {
         switch state {
-        case .working: ProgressView().controlSize(.mini).tint(.white.opacity(0.72))
+        case .working:
+            if reduceMotion {
+                Image(systemName: "circle.fill").foregroundStyle(.effectiveAccent)
+            } else {
+                ProgressView().controlSize(.mini).tint(.white.opacity(0.72))
+            }
         case .approvalRequired: Image(systemName: "exclamationmark").foregroundStyle(.orange)
         case .completed: Image(systemName: "checkmark").foregroundStyle(.green)
         case .failed: Image(systemName: "xmark").foregroundStyle(.red)
@@ -534,7 +588,7 @@ struct CodexActivityPanel: View {
                 .foregroundStyle(.orange)
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 2) {
-                Text("Codex integration needs attention")
+                Text(integrationTitle)
                     .font(.system(size: 11.5, weight: .semibold))
                 Text(integrationError ?? manager.bridgeError ?? manager.hookStatus.summary)
                     .font(.system(size: 10))
@@ -542,9 +596,13 @@ struct CodexActivityPanel: View {
                     .lineLimit(2)
             }
             Spacer()
-            Button("Repair") {
+            Button(integrationActionTitle) {
                 do {
-                    try manager.installCodexIntegration()
+                    if manager.hookStatus.isHealthy, manager.bridgeError != nil {
+                        try manager.retryActivityServices()
+                    } else {
+                        try manager.installCodexIntegration()
+                    }
                     integrationError = nil
                 } catch {
                     integrationError = error.localizedDescription
@@ -555,6 +613,20 @@ struct CodexActivityPanel: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 8)
+    }
+
+    private var integrationTitle: String {
+        manager.hookStatus.isHealthy && manager.bridgeError != nil
+            ? "Codex connection needs attention" : "Codex integration needs attention"
+    }
+
+    private var integrationActionTitle: String {
+        if manager.hookStatus.isHealthy, manager.bridgeError != nil { return "Retry" }
+        if manager.hookStatus.hasLegacyIntegration { return "Migrate" }
+        if manager.hookStatus.installedEvents.isEmpty && !manager.hookStatus.helperInstalled {
+            return "Install"
+        }
+        return "Repair"
     }
 
     private func approvalView(_ request: CodexApprovalRequest) -> some View {
@@ -608,13 +680,23 @@ struct CodexActivityPanel: View {
                 }
                 .buttonStyle(.bordered)
                 .keyboardShortcut("d", modifiers: .command)
-                Button("Copy") {
+                Button(copiedApprovalID == request.id ? "Copied" : "Copy") {
                     NSPasteboard.general.clearContents()
                     NSPasteboard.general.setString(request.operation, forType: .string)
+                    copiedApprovalID = request.id
+                    Task {
+                        try? await Task.sleep(for: .seconds(1.5))
+                        if copiedApprovalID == request.id { copiedApprovalID = nil }
+                    }
                 }
                 .buttonStyle(.bordered)
                 .help("Copy operation")
-                .accessibilityLabel("Copy operation")
+                Button("Not now") {
+                    manager.resolveApproval(id: request.id, decision: .deferDecision)
+                }
+                .buttonStyle(.bordered)
+                .keyboardShortcut(.cancelAction)
+                .help("Return this request to Codex without allowing or denying it")
                 Button("Open Codex") {
                     CodexActivationService.openCodex(fallbackDirectory: request.workingDirectory)
                 }

@@ -6,6 +6,7 @@ import Foundation
 
 struct CodexHookInstallationStatus: Equatable, Sendable {
   let installedEvents: Set<String>
+  let legacyEvents: Set<String>
   let helperInstalled: Bool
   let configurationExists: Bool
   let error: String?
@@ -14,10 +15,15 @@ struct CodexHookInstallationStatus: Equatable, Sendable {
     installedEvents == Set(CodexHookInstaller.supportedEvents) && helperInstalled && error == nil
   }
 
+  var hasLegacyIntegration: Bool { !legacyEvents.isEmpty }
+
   var summary: String {
     if let error { return error }
     if isHealthy { return "Installed" }
-    if installedEvents.isEmpty { return "Codex hooks are not installed" }
+    if installedEvents.isEmpty, hasLegacyIntegration {
+      return "Cowlick hooks detected — migration needed"
+    }
+    if installedEvents.isEmpty { return "boring.notch hooks are not installed" }
     return "Codex integration needs repair"
   }
 }
@@ -116,7 +122,8 @@ struct CodexHookInstaller {
     do {
       guard let data = try readHooksDataIfPresent() else {
         return CodexHookInstallationStatus(
-          installedEvents: [], helperInstalled: helperExists, configurationExists: false,
+          installedEvents: [], legacyEvents: [], helperInstalled: helperExists,
+          configurationExists: false,
           error: nil)
       }
       let root = try Self.decodeRoot(data)
@@ -125,12 +132,24 @@ struct CodexHookInstaller {
           Self.containsEquivalentCommand(
             in: root, event: $0, command: Self.hookCommand(for: shimURL))
         })
+      let legacyCommands = [
+        Self.hookCommand(for: cowlickShimURL),
+        Self.hookCommand(for: legacyShimURL),
+      ]
+      let legacyEvents = Set(
+        Self.supportedEvents.filter { event in
+          legacyCommands.contains { command in
+            Self.containsEquivalentCommand(in: root, event: event, command: command)
+          }
+        })
       return CodexHookInstallationStatus(
-        installedEvents: events, helperInstalled: helperExists, configurationExists: true,
+        installedEvents: events, legacyEvents: legacyEvents, helperInstalled: helperExists,
+        configurationExists: true,
         error: nil)
     } catch {
       return CodexHookInstallationStatus(
-        installedEvents: [], helperInstalled: helperExists, configurationExists: true,
+        installedEvents: [], legacyEvents: [], helperInstalled: helperExists,
+        configurationExists: true,
         error: error.localizedDescription)
     }
   }

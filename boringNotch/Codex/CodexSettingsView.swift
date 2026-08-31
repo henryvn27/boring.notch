@@ -21,6 +21,8 @@ struct CodexSettingsView: View {
     @State private var capsLockStatus = "Not tested"
     @State private var diagnostics = ""
     @State private var confirmRemoval = false
+    @State private var isRunningSelfTest = false
+    @State private var isTestingCapsLock = false
 
     var body: some View {
         Form {
@@ -46,13 +48,33 @@ struct CodexSettingsView: View {
                 Text("When enabled, boring.notch observes local Codex lifecycle metadata and may read token counters or request official quota. It does not retain prompts or tool input in activity checkpoints. Existing installations stay enabled; new installs wait for your choice.")
             }
 
+            if manager.isUITesting {
+                Section {
+                    Label(
+                        "Simulated Codex activity is shown for visual QA. Real integration health is hidden and cannot be changed here.",
+                        systemImage: "testtube.2"
+                    )
+                } header: {
+                    Text("Visual QA")
+                }
+            }
+
             Section {
-                LabeledContent("Hooks", value: manager.hookStatus.summary)
-                LabeledContent("Hook trust", value: manager.hookTrust.state.summary)
-                LabeledContent("Self-test", value: manager.selfTestStatus)
-                LabeledContent("Local bridge", value: manager.bridgeStatus)
-                LabeledContent("Transcript observation", value: manager.localObservationStatus)
-                LabeledContent("Codex executable", value: manager.executableStatus)
+                LabeledContent("Hooks", value: integrationStatus(manager.hookStatus.summary))
+                LabeledContent("Hook trust", value: integrationStatus(manager.hookTrust.state.summary))
+                LabeledContent("Self-test", value: integrationStatus(manager.selfTestStatus))
+                LabeledContent("Local bridge", value: manager.isUITesting ? "Simulated" : manager.bridgeStatus)
+                LabeledContent(
+                    "Transcript observation",
+                    value: manager.isUITesting ? "Off in visual QA" : manager.localObservationStatus
+                )
+                LabeledContent("Codex executable") {
+                    Text(manager.isUITesting ? "Hidden in visual QA" : manager.executableStatus)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .textSelection(.enabled)
+                        .help(manager.isUITesting ? "Hidden in visual QA" : manager.executableStatus)
+                }
 
                 if let integrationError {
                     Text(integrationError)
@@ -60,40 +82,51 @@ struct CodexSettingsView: View {
                         .foregroundStyle(.red)
                 }
 
-                HStack {
-                    Button(manager.hookStatus.isHealthy ? "Repair Integration" : "Install Integration") {
-                        do {
-                            try manager.installCodexIntegration()
-                            integrationError = nil
-                            refreshDiagnostics()
-                        } catch {
-                            integrationError = error.localizedDescription
+                if manager.isUITesting {
+                    Text("Integration changes are disabled in visual QA.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    HStack {
+                        Button(integrationActionTitle) {
+                            do {
+                                try manager.installCodexIntegration()
+                                integrationError = nil
+                                refreshDiagnostics()
+                            } catch {
+                                integrationError = error.localizedDescription
+                            }
                         }
-                    }
-                    Button("Remove Integration", role: .destructive) {
-                        confirmRemoval = true
-                    }
-                    .disabled(!manager.hookStatus.configurationExists && !manager.hookStatus.helperInstalled)
-                    Spacer()
-                    Button("Refresh") {
-                        manager.refreshCodexIntegrationStatus()
-                        manager.refreshHookTrust()
-                        refreshDiagnostics()
-                    }
-                }
-                HStack {
-                    Button("Check Trust") { manager.refreshHookTrust() }
-                    Button("Copy /hooks") {
-                        NSPasteboard.general.clearContents()
-                        NSPasteboard.general.setString("/hooks", forType: .string)
-                    }
-                    Button("Run Self-Test") {
-                        Task {
-                            await manager.runIntegrationSelfTest()
+                        Button("Remove Integration", role: .destructive) {
+                            confirmRemoval = true
+                        }
+                        .disabled(
+                            !manager.hookStatus.configurationExists
+                                && !manager.hookStatus.helperInstalled
+                        )
+                        Spacer()
+                        Button("Refresh") {
+                            manager.refreshCodexIntegrationStatus()
+                            manager.refreshHookTrust()
                             refreshDiagnostics()
                         }
                     }
-                    .disabled(!manager.hookStatus.helperInstalled)
+                    HStack {
+                        Button("Check Trust") { manager.refreshHookTrust() }
+                        Button("Copy /hooks") {
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.setString("/hooks", forType: .string)
+                        }
+                        Button(isRunningSelfTest ? "Running Self-Test…" : "Run Self-Test") {
+                            Task {
+                                isRunningSelfTest = true
+                                await manager.runIntegrationSelfTest()
+                                isRunningSelfTest = false
+                                refreshDiagnostics()
+                            }
+                        }
+                        .disabled(!manager.hookStatus.helperInstalled || isRunningSelfTest)
+                    }
                 }
             } header: {
                 Text("Integration")
@@ -135,15 +168,17 @@ struct CodexSettingsView: View {
                 )
                 .disabled(!capsLockSignals)
                 LabeledContent("Support", value: capsLockStatus)
-                Button("Test Caps Lock Signal") {
+                Button(isTestingCapsLock ? "Testing Caps Lock Signal…" : "Test Caps Lock Signal") {
                     Task {
+                        isTestingCapsLock = true
                         let result = await manager.testCapsLockSignal()
                         capsLockStatus = result == .available
                             ? "Native HID signal test passed" : result.summary
                         if result != .available { capsLockSignals = false }
+                        isTestingCapsLock = false
                     }
                 }
-                .disabled(!capsLockSignals)
+                .disabled(!capsLockSignals || isTestingCapsLock)
             } header: {
                 Text("Caps Lock signal")
             } footer: {
@@ -272,5 +307,15 @@ struct CodexSettingsView: View {
 
     private func refreshDiagnostics() {
         diagnostics = manager.diagnosticsReport()
+    }
+
+    private func integrationStatus(_ value: String) -> String {
+        manager.isUITesting ? "Hidden in visual QA" : value
+    }
+
+    private var integrationActionTitle: String {
+        if manager.hookStatus.isHealthy { return "Repair Integration" }
+        if manager.hookStatus.hasLegacyIntegration { return "Migrate Cowlick Integration" }
+        return "Install Integration"
     }
 }

@@ -7,6 +7,7 @@ enum CodexHookInstallerTests {
         try explicitInstallAndRemovalPreserveUnrelatedConfiguration()
         try symlinkedHooksAreRejectedWithoutTouchingTheirTarget()
         try cowlickCommandIsMigratedOnlyWhenExplicitlyNamed()
+        try cowlickStatusExplainsMigration()
     }
 
     private static func mergingIsIdempotentAndPreservesForeignHooks() throws {
@@ -110,6 +111,31 @@ enum CodexHookInstallerTests {
             .flatMap { $0["hooks"] as? [[String: Any]] ?? [] }
         try expect(handlers.count == 1)
         try expect(handlers.first?["command"] as? String == boring)
+    }
+
+    private static func cowlickStatusExplainsMigration() throws {
+        let root = URL(fileURLWithPath: "/tmp/bnc-\(getpid())-\(UUID().uuidString.prefix(8))", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let home = root.appendingPathComponent("home", isDirectory: true)
+        let helper = root.appendingPathComponent("helper")
+        try FileManager.default.createDirectory(
+            at: home.appendingPathComponent(".codex"),
+            withIntermediateDirectories: true
+        )
+        try Data("helper".utf8).write(to: helper)
+        let installer = CodexHookInstaller(
+            homeDirectory: home,
+            bundledHelperURL: helper,
+            arguments: []
+        )
+        let command = "'\(installer.cowlickShimURL.path)' hook"
+        let hooks = try CodexHookInstaller.merging(Data("{}".utf8), command: command)
+        try hooks.write(to: installer.hooksURL)
+
+        let status = installer.status()
+        try expect(!status.isHealthy)
+        try expect(status.legacyEvents == Set(CodexHookInstaller.supportedEvents))
+        try expect(status.summary == "Cowlick hooks detected — migration needed")
     }
 
     private static func object(_ data: Data) throws -> [String: Any] {
