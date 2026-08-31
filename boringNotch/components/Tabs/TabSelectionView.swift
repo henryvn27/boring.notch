@@ -24,12 +24,14 @@ let tabs = [
 
 struct TabSelectionView: View {
     @ObservedObject var coordinator = BoringViewCoordinator.shared
+    @ObservedObject private var codexActivity = CodexActivityManager.shared
     @Default(.assistantEnabled) private var assistantEnabled
     @Namespace var animation
     private var visibleTabs: [TabModel] {
         tabs.filter { tab in
             (tab.view != .shelf || Defaults[.boringShelf])
                 && (tab.view != .assistant || assistantEnabled)
+                && (tab.view != .codex || codexActivity.displayMode.showsCodex)
         }
     }
     var body: some View {

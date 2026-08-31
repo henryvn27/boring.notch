@@ -128,6 +128,15 @@ final class MusicManager: ObservableObject {
         Self.migrateMediaControllerPreferenceIfNeeded()
         preferredMediaController = Defaults[.mediaController]
 
+        if CommandLine.arguments.contains("--ui-testing-contents") {
+            songTitle = "Quiet Focus"
+            artistName = "Boring Notch"
+            albumArt = defaultImage
+            isPlaying = true
+            isPlayerIdle = false
+            return
+        }
+
         if preferredMediaController == .nowPlaying {
             activateFallback()
             ensureNowPlayingAvailabilityChecked()

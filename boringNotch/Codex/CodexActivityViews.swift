@@ -149,6 +149,65 @@ struct CodexCompactActivityView: View {
     }
 }
 
+struct CodexCompactUsageView: View {
+    let notchWidth: CGFloat
+    let height: CGFloat
+    let action: () -> Void
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 0) {
+                Text("Codex usage")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.9))
+                    .frame(width: 110, alignment: .trailing)
+                    .padding(.horizontal, 9)
+                Color.black.frame(width: notchWidth)
+                CodexUsageRemainingLabel()
+                    .frame(width: 110, alignment: .leading)
+                    .padding(.horizontal, 9)
+            }
+            .frame(height: height)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(CodexCompactButtonStyle(reduceMotion: reduceMotion))
+        .accessibilityHint("Open Codex usage")
+    }
+}
+
+struct CodexUsageRemainingLabel: View {
+    @ObservedObject private var usage = CodexUsageManager.shared
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Image(systemName: "gauge.with.dots.needle.33percent")
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.58))
+            if let limit = usage.snapshot?.primaryLimit {
+                Text("\(Int(limit.remainingPercent.rounded()))%")
+                    .monospacedDigit()
+            } else if usage.isRefreshing {
+                ProgressView().controlSize(.mini).tint(.white.opacity(0.72))
+            } else {
+                Text("—")
+            }
+        }
+        .font(.system(size: 10.5, weight: .semibold, design: .rounded))
+        .foregroundStyle(.white.opacity(0.9))
+        .lineLimit(1)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(accessibilityLabel)
+    }
+
+    private var accessibilityLabel: String {
+        if let limit = usage.snapshot?.primaryLimit {
+            return "Codex, \(Int(limit.remainingPercent.rounded())) percent quota left"
+        }
+        return usage.isRefreshing ? "Refreshing Codex quota" : "Codex quota unavailable"
+    }
+}
+
 private struct CodexCompactButtonStyle: ButtonStyle {
     let reduceMotion: Bool
 
@@ -174,7 +233,9 @@ struct CodexActivityPanel: View {
 
     var body: some View {
         Group {
-            if let approval = manager.currentApproval {
+            if manager.displayMode == .usageOnly {
+                usageOnlyView
+            } else if let approval = manager.currentApproval {
                 approvalView(approval)
             } else {
                 activityView
@@ -183,6 +244,55 @@ struct CodexActivityPanel: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .foregroundStyle(.white)
         .accessibilityIdentifier("codex-activity-panel")
+    }
+
+    private var usageOnlyView: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 9) {
+                Image(systemName: "gauge.with.dots.needle.33percent")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Color.effectiveAccent)
+                    .frame(width: 18)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Codex usage").font(.system(size: 13, weight: .semibold))
+                    Text("Official quota only · current tasks are hidden")
+                        .font(.system(size: 10.5))
+                        .foregroundStyle(.white.opacity(0.58))
+                }
+                Spacer()
+                Button {
+                    SettingsWindowController.shared.showWindow(selectedTab: .codex)
+                } label: {
+                    Image(systemName: "gearshape")
+                }
+                .buttonStyle(.borderless)
+                .help("Codex settings")
+                .accessibilityLabel("Codex settings")
+            }
+            .padding(.horizontal, 14)
+            .frame(height: 44)
+
+            Divider().overlay(.white.opacity(0.12))
+
+            if usage.snapshot != nil || usage.isRefreshing {
+                usageView
+            } else {
+                VStack(spacing: 7) {
+                    Image(systemName: "exclamationmark.triangle")
+                        .foregroundStyle(.orange)
+                    Text(usage.errorMessage ?? "Codex usage is not available yet.")
+                        .font(.system(size: 10.5))
+                        .foregroundStyle(.white.opacity(0.62))
+                        .multilineTextAlignment(.center)
+                    Button("Refresh") { usage.refresh() }
+                        .controlSize(.small)
+                        .buttonStyle(.bordered)
+                }
+                .frame(maxWidth: .infinity, minHeight: 92)
+                .padding(.horizontal, 14)
+                .accessibilityElement(children: .combine)
+            }
+        }
     }
 
     private var activityView: some View {

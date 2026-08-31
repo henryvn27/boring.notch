@@ -28,29 +28,26 @@ struct CodexSettingsView: View {
     var body: some View {
         Form {
             Section {
-                Toggle(
-                    "Monitor Codex activity on this Mac",
-                    isOn: Binding(
-                        get: { manager.isActivityEnabled },
-                        set: { enabled in
-                            do {
-                                try manager.setActivityEnabled(enabled)
-                                integrationError = nil
-                                refreshDiagnostics()
-                            } catch {
-                                integrationError = CodexActivityManager.sanitized(
-                                    error.localizedDescription
-                                )
-                            }
-                        }
-                    )
-                )
+                Picker("Show in the notch", selection: displayModeBinding) {
+                    ForEach(CodexDisplayMode.allCases) { mode in
+                        Text(mode.label).tag(mode)
+                    }
+                }
+                Text(manager.displayMode.detail)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                if let integrationError {
+                    Text(integrationError)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                }
             } header: {
-                Text("Activity access")
+                Text("Codex display")
             } footer: {
-                Text("When enabled, boring.notch observes local Codex lifecycle metadata and may read token counters or request official quota. It does not retain prompts or tool input in activity checkpoints. Existing installations stay enabled; new installs wait for your choice.")
+                Text("Usage only requests official account quota but does not monitor or show current tasks. Full activity observes local lifecycle metadata without retaining prompts or tool input in checkpoints.")
             }
 
+            if manager.displayMode == .fullActivity {
             if manager.isUITesting {
                 Section {
                     Label(
@@ -268,6 +265,29 @@ struct CodexSettingsView: View {
             } footer: {
                 Text("boring.notch shows one aggregate bar only for a current, locked plan, computed from agent-reported verified milestones with timestamped evidence. It exposes the latest evidence label but does not rerun the underlying check. Agents never submit raw percentages or individual bars.")
             }
+            } else if manager.displayMode == .usageOnly {
+                Section {
+                    LabeledContent("Current tasks", value: "Hidden")
+                    LabeledContent("Agents and progress", value: "Hidden")
+                    Button(usage.isRefreshing ? "Refreshing Quota…" : "Refresh Official Quota") {
+                        usage.refresh()
+                    }
+                    .disabled(usage.isRefreshing)
+                    if let limit = usage.snapshot?.primaryLimit {
+                        LabeledContent(
+                            limit.name,
+                            value: "\(Int(limit.remainingPercent.rounded()))% left"
+                        )
+                    }
+                    if let error = usage.errorMessage {
+                        Text(error).font(.caption).foregroundStyle(.secondary)
+                    }
+                } header: {
+                    Text("Usage only")
+                } footer: {
+                    Text("No task names, agent rows, checkpoint bars, approval requests, or local transcript estimates appear in this mode.")
+                }
+            }
 
             Section {
                 TextEditor(text: .constant(diagnostics))
@@ -319,6 +339,21 @@ struct CodexSettingsView: View {
 
     private func refreshDiagnostics() {
         diagnostics = manager.diagnosticsReport()
+    }
+
+    private var displayModeBinding: Binding<CodexDisplayMode> {
+        Binding(
+            get: { manager.displayMode },
+            set: { mode in
+                do {
+                    try manager.setDisplayMode(mode)
+                    integrationError = nil
+                    refreshDiagnostics()
+                } catch {
+                    integrationError = CodexActivityManager.sanitized(error.localizedDescription)
+                }
+            }
+        )
     }
 
     private func integrationStatus(_ value: String) -> String {

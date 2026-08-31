@@ -74,6 +74,7 @@ final class CodexActivityManager: ObservableObject {
     @Published private(set) var progressSnapshot: CodexAgentProgressSnapshot?
     @Published private(set) var progressError: String?
     @Published private(set) var approvalRequests: [CodexApprovalRequest] = []
+    @Published private(set) var displayMode: CodexDisplayMode = .off
     @Published private(set) var isActivityEnabled = false
     let isUITesting = CommandLine.arguments.contains("--ui-testing")
 
@@ -99,19 +100,27 @@ final class CodexActivityManager: ObservableObject {
         guard !didResolveActivityConsent else { return }
         didResolveActivityConsent = true
         hookStatus = hookInstaller.status()
+        if isUITesting, CommandLine.arguments.contains("--ui-testing-contents") {
+            displayMode = .usageOnly
+            isActivityEnabled = false
+            CodexUsageManager.shared.start()
+            return
+        }
         let explicitValue = UserDefaults.standard.object(forKey: "codexActivityEnabled") as? Bool
         let integrationInstalled = hookStatus.helperInstalled || !hookStatus.installedEvents.isEmpty
-        isActivityEnabled = CodexActivityConsentPolicy.resolved(
+        let legacyActivityEnabled = CodexActivityConsentPolicy.resolved(
             explicitValue: explicitValue,
             integrationInstalled: integrationInstalled
         )
-        Defaults[.codexActivityEnabled] = isActivityEnabled
-        guard isActivityEnabled else {
-            bridgeError = nil
-            return
-        }
+        displayMode = CodexDisplayMode.resolved(
+            storedValue: UserDefaults.standard.string(forKey: "codexDisplayMode"),
+            legacyActivityEnabled: legacyActivityEnabled
+        )
+        Defaults[.codexDisplayMode] = displayMode
+        Defaults[.codexActivityEnabled] = displayMode.monitorsActivity
+        isActivityEnabled = displayMode.monitorsActivity
         do {
-            try startActivityServices()
+            try applyDisplayMode(displayMode)
         } catch {
             bridgeError = Self.sanitized(error.localizedDescription)
             reducer.disconnect()
@@ -120,18 +129,38 @@ final class CodexActivityManager: ObservableObject {
     }
 
     func setActivityEnabled(_ enabled: Bool) throws {
-        Defaults[.codexActivityEnabled] = enabled
-        isActivityEnabled = enabled
-        if enabled {
-            do {
-                try startActivityServices()
-            } catch {
-                isActivityEnabled = false
-                Defaults[.codexActivityEnabled] = false
-                throw error
-            }
-        } else {
+        try setDisplayMode(enabled ? .fullActivity : .off)
+    }
+
+    func setDisplayMode(_ mode: CodexDisplayMode) throws {
+        guard mode != displayMode else { return }
+        let previousMode = displayMode
+        displayMode = mode
+        Defaults[.codexDisplayMode] = mode
+        Defaults[.codexActivityEnabled] = mode.monitorsActivity
+        isActivityEnabled = mode.monitorsActivity
+        do {
+            try applyDisplayMode(mode)
+            bridgeError = nil
+        } catch {
+            displayMode = previousMode
+            Defaults[.codexDisplayMode] = previousMode
+            Defaults[.codexActivityEnabled] = previousMode.monitorsActivity
+            isActivityEnabled = previousMode.monitorsActivity
+            try? applyDisplayMode(previousMode)
+            throw error
+        }
+    }
+
+    private func applyDisplayMode(_ mode: CodexDisplayMode) throws {
+        switch mode {
+        case .off:
             stopActivityServices()
+        case .usageOnly:
+            stopActivityServices()
+            CodexUsageManager.shared.start()
+        case .fullActivity:
+            try startActivityServices()
         }
     }
 
@@ -188,11 +217,11 @@ final class CodexActivityManager: ObservableObject {
         try hookInstaller.installOrRepair()
         hookStatus = hookInstaller.status()
         refreshHookTrust()
-        try setActivityEnabled(true)
+        try setDisplayMode(.fullActivity)
     }
 
     func removeCodexIntegration() throws {
-        try setActivityEnabled(false)
+        try setDisplayMode(.off)
         try hookInstaller.removeIntegration()
         hookStatus = hookInstaller.status()
         hookTrust = .notChecked

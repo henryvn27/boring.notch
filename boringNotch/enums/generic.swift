@@ -25,6 +25,38 @@ public enum NotchViews {
     case codex
 }
 
+enum CodexDisplayMode: String, CaseIterable, Identifiable, Defaults.Serializable {
+    case off
+    case usageOnly
+    case fullActivity
+
+    var id: Self { self }
+
+    var label: String {
+        switch self {
+        case .off: "Off"
+        case .usageOnly: "Usage only"
+        case .fullActivity: "Full activity"
+        }
+    }
+
+    var detail: String {
+        switch self {
+        case .off: "Hide Codex from the notch."
+        case .usageOnly: "Show account usage without current tasks or agents."
+        case .fullActivity: "Show usage, current tasks, agents, progress, and approvals."
+        }
+    }
+
+    var showsCodex: Bool { self != .off }
+    var monitorsActivity: Bool { self == .fullActivity }
+
+    static func resolved(storedValue: String?, legacyActivityEnabled: Bool) -> Self {
+        storedValue.flatMap(Self.init(rawValue:))
+            ?? (legacyActivityEnabled ? .fullActivity : .off)
+    }
+}
+
 enum DownloadIndicatorStyle: String, Defaults.Serializable {
     case progress = "Progress"
     case percentage = "Percentage"

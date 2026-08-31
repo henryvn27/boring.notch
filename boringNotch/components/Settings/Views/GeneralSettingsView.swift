@@ -17,8 +17,11 @@ struct GeneralSettings: View {
     @State private var showLanguageRestartAlert = false
     @EnvironmentObject var vm: BoringViewModel
     @ObservedObject var coordinator = BoringViewCoordinator.shared
+    @ObservedObject private var codexActivity = CodexActivityManager.shared
+    @State private var codexModeError: String?
 
     @Default(.appLanguage) var appLanguage
+    @Default(.assistantEnabled) private var assistantEnabled
     @Default(.mirrorShape) var mirrorShape
     @Default(.gestureSensitivity) var gestureSensitivity
     @Default(.minimumHoverDuration) var minimumHoverDuration
@@ -35,6 +38,25 @@ struct GeneralSettings: View {
 
     var body: some View {
         Form {
+            Section {
+                Toggle("Music", isOn: $coordinator.musicLiveActivityEnabled)
+                Toggle("Assistant", isOn: $assistantEnabled)
+                Picker("Codex", selection: codexDisplayModeBinding) {
+                    ForEach(CodexDisplayMode.allCases) { mode in
+                        Text(mode.label).tag(mode)
+                    }
+                }
+                if let codexModeError {
+                    Text(codexModeError)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                }
+            } header: {
+                Text("Notch contents")
+            } footer: {
+                Text("Music and Assistant are independent. Codex Usage only shows account capacity without current tasks or agents. Full activity adds tasks, progress, and approvals.")
+            }
+
             Section {
                 Toggle(isOn: Binding(
                     get: { Defaults[.menubarIcon] },
@@ -193,6 +215,20 @@ struct GeneralSettings: View {
         } message: {
             Text("Changing the app language requires restarting Boring Notch.")
         }
+    }
+
+    private var codexDisplayModeBinding: Binding<CodexDisplayMode> {
+        Binding(
+            get: { codexActivity.displayMode },
+            set: { mode in
+                do {
+                    try codexActivity.setDisplayMode(mode)
+                    codexModeError = nil
+                } catch {
+                    codexModeError = CodexActivityManager.sanitized(error.localizedDescription)
+                }
+            }
+        )
     }
 
     @ViewBuilder

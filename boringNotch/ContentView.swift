@@ -47,9 +47,17 @@ struct ContentView: View {
     private let extendedHoverPadding: CGFloat = 30
     private let zeroHeightHoverPadding: CGFloat = 10
     private let nowPlayingFallbackNoticeWidth: CGFloat = 330
+    private var isNotchContentsUITesting: Bool {
+        CommandLine.arguments.contains("--ui-testing-contents")
+    }
 
     private var hasCodexPresentation: Bool {
-        !codexActivity.snapshot.activities.isEmpty || codexActivity.progressSnapshot != nil
+        codexActivity.displayMode == .fullActivity
+            && (!codexActivity.snapshot.activities.isEmpty || codexActivity.progressSnapshot != nil)
+    }
+
+    private var hasCodexUsagePresentation: Bool {
+        codexActivity.displayMode == .usageOnly
     }
 
     private var hasAssistantPresentation: Bool {
@@ -100,7 +108,10 @@ struct ContentView: View {
     private var computedChinWidth: CGFloat {
         var chinWidth: CGFloat = vm.closedNotchSize.width
 
-        if shouldDisplayNowPlayingFallbackNotice {
+        if isNotchContentsUITesting && vm.notchState == .closed {
+            let artworkWidth = max(0, displayClosedNotchHeight - 12)
+            chinWidth += artworkWidth + 58 + 20 + 2 * liveActivityEdgeMargin + 2
+        } else if shouldDisplayNowPlayingFallbackNotice {
             chinWidth = nowPlayingFallbackNoticeWidth
         } else if vm.notchState == .closed && hasAssistantPresentation {
             chinWidth = max(chinWidth, vm.closedNotchSize.width + 218)
@@ -114,7 +125,11 @@ struct ContentView: View {
             && vm.notchState == .closed && (musicManager.isPlaying || !musicManager.isPlayerIdle)
             && coordinator.musicLiveActivityEnabled && !vm.hideOnClosed
         {
-            chinWidth += (2 * max(0, displayClosedNotchHeight - 12) + 20 + 2 * liveActivityEdgeMargin + 2)
+            let artworkWidth = max(0, displayClosedNotchHeight - 12)
+            let trailingWidth = hasCodexUsagePresentation ? 58 : artworkWidth
+            chinWidth += artworkWidth + trailingWidth + 20 + 2 * liveActivityEdgeMargin + 2
+        } else if vm.notchState == .closed && hasCodexUsagePresentation && !vm.hideOnClosed {
+            chinWidth = max(chinWidth, vm.closedNotchSize.width + 238)
         } else if !coordinator.expandingView.show && vm.notchState == .closed
             && (!musicManager.isPlaying && musicManager.isPlayerIdle) && Defaults[.showNotHumanFace]
             && !vm.hideOnClosed
@@ -288,7 +303,13 @@ struct ContentView: View {
         .preferredColorScheme(.dark)
         .environmentObject(vm)
         .onAppear {
-            if assistant.isUITesting {
+            if isNotchContentsUITesting {
+                applyNotchContentsUITestFixture()
+                Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(750))
+                    applyNotchContentsUITestFixture()
+                }
+            } else if assistant.isUITesting {
                 coordinator.firstLaunch = false
                 coordinator.helloAnimationRunning = false
                 coordinator.currentView = .assistant
@@ -331,7 +352,25 @@ struct ContentView: View {
             if !isEnabled && coordinator.currentView == .assistant {
                 coordinator.currentView = .home
             }
+            if !isEnabled { assistant.cancel() }
         }
+        .onChange(of: codexActivity.displayMode) { _, mode in
+            if mode == .off && coordinator.currentView == .codex {
+                coordinator.currentView = .home
+            }
+        }
+    }
+
+    private func applyNotchContentsUITestFixture() {
+        coordinator.firstLaunch = false
+        coordinator.helloAnimationRunning = false
+        coordinator.musicLiveActivityEnabled = true
+        musicManager.songTitle = "Quiet Focus"
+        musicManager.artistName = "Boring Notch"
+        musicManager.albumArt = defaultImage
+        musicManager.isPlaying = true
+        musicManager.isPlayerIdle = false
+        vm.close()
     }
 
     @ViewBuilder
@@ -351,7 +390,10 @@ struct ContentView: View {
                     .padding(.top, 40)
                     Spacer()
                 } else {
-                    if shouldDisplayNowPlayingFallbackNotice,
+                    if isNotchContentsUITesting && vm.notchState == .closed {
+                        MusicLiveActivity()
+                            .frame(alignment: .center)
+                    } else if shouldDisplayNowPlayingFallbackNotice,
                        let notice = musicManager.nowPlayingNotice {
                         nowPlayingFallbackNotice(notice)
                             .transition(.opacity.combined(with: .scale(scale: 0.96, anchor: .top)))
@@ -416,6 +458,16 @@ struct ContentView: View {
                       } else if (!coordinator.expandingView.show || coordinator.expandingView.type == .music) && vm.notchState == .closed && (musicManager.isPlaying || !musicManager.isPlayerIdle) && coordinator.musicLiveActivityEnabled && !vm.hideOnClosed {
                           MusicLiveActivity()
                               .frame(alignment: .center)
+                      } else if vm.notchState == .closed && hasCodexUsagePresentation && !vm.hideOnClosed {
+                          CodexCompactUsageView(
+                              notchWidth: vm.closedNotchSize.width,
+                              height: displayClosedNotchHeight
+                          ) {
+                              if vm.open() {
+                                  coordinator.currentView = .codex
+                              }
+                          }
+                          .transition(.opacity.combined(with: .scale(scale: 0.96, anchor: .top)))
                       } else if !coordinator.expandingView.show && vm.notchState == .closed && (!musicManager.isPlaying && musicManager.isPlayerIdle) && Defaults[.showNotHumanFace] && !vm.hideOnClosed  {
                           BoringFaceAnimation()
                        } else if vm.notchState == .open {
@@ -644,21 +696,23 @@ struct ContentView: View {
                         : vm.closedNotchSize.width - 4 + (2 * liveActivityEdgeMargin)
                 )
 
-            HStack {
-                AudioSpectrumView(
-                    isPlaying: musicManager.isPlaying,
-                    tintColor: Defaults[.coloredSpectrogram]
-                    ? Color(nsColor: musicManager.avgColor).ensureMinimumBrightness(factor: 0.5)
-                    : Color.gray
-                )
-                .frame(width: 18, height: 12)
+            Group {
+                if hasCodexUsagePresentation {
+                    CodexUsageRemainingLabel()
+                } else {
+                    AudioSpectrumView(
+                        isPlaying: musicManager.isPlaying,
+                        tintColor: Defaults[.coloredSpectrogram]
+                        ? Color(nsColor: musicManager.avgColor).ensureMinimumBrightness(factor: 0.5)
+                        : Color.gray
+                    )
+                    .frame(width: 18, height: 12)
+                }
             }
             .frame(
-                width: max(
-                    0,
-                    displayClosedNotchHeight - 12
-                        + gestureProgress / 2
-                ),
+                width: hasCodexUsagePresentation
+                    ? 58
+                    : max(0, displayClosedNotchHeight - 12 + gestureProgress / 2),
                 height: max(
                     0,
                     displayClosedNotchHeight - 12
