@@ -237,6 +237,13 @@ private struct CodexIntegrationOnboardingView: View {
                 .multilineTextAlignment(.center)
                 .foregroundColor(.secondary)
                 .padding(.horizontal, 34)
+            if manager.hookStatus.hasLegacyIntegration {
+                Text("Cowlick hooks were found. Migrating replaces only those hook commands and preserves your other Codex configuration.")
+                    .font(.callout)
+                    .multilineTextAlignment(.center)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 34)
+            }
             if let errorMessage {
                 Text(errorMessage)
                     .font(.caption)
@@ -245,19 +252,25 @@ private struct CodexIntegrationOnboardingView: View {
             }
             Spacer()
             VStack(spacing: 10) {
-                Button("Install Codex Integration") {
+                Button(
+                    manager.hookStatus.hasLegacyIntegration
+                        ? "Migrate Cowlick Integration" : "Install Codex Integration"
+                ) {
                     do {
                         try manager.installCodexIntegration()
                         errorMessage = nil
                         onContinue()
                     } catch {
-                        errorMessage = error.localizedDescription
+                        errorMessage = CodexActivityManager.sanitized(error.localizedDescription)
                     }
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
                 .keyboardShortcut(.defaultAction)
-                Button("Skip for Now", action: onContinue)
+                Button("Skip for Now") {
+                    try? manager.setActivityEnabled(false)
+                    onContinue()
+                }
                     .buttonStyle(.plain)
             }
             .padding(.bottom, 24)

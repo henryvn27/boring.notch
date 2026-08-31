@@ -11,6 +11,8 @@ struct CodexActivityReducerTests {
         try staleAndDisconnectedSnapshotsExposeNoActivity()
         try serializedSnapshotIsAllowlistedAndStripsSensitivePathData()
         try rejectsReplayedOlderAndImplausiblyTimedEvents()
+        try presentationStateUsesOneSafetyFirstPrecedence()
+        try activityConsentRequiresAChoiceOrExistingInstallation()
         try CodexBridgeServerTests.run()
         try CodexHookInstallerTests.run()
         try CodexLifecycleTests.run()
@@ -20,7 +22,7 @@ struct CodexActivityReducerTests {
         try await ProviderAccountTests.run()
         try CodexIntegrationServiceTests.run()
         try CodexAgentProgressStoreTests.run()
-        print("CodexActivityCore: 35 tests passed")
+        print("CodexActivityCore: focused test suites passed")
     }
 
     private static func orderingUsesStateRecencyThenStableSessionID() throws {
@@ -116,6 +118,87 @@ struct CodexActivityReducerTests {
         try expect(!reducer.receive(event(session: "s", sequence: 3, timestamp: now.addingTimeInterval(-1), kind: .failed), now: now))
         try expect(!reducer.receive(event(session: "old", sequence: 1, timestamp: now.addingTimeInterval(-901), kind: .working), now: now))
         try expect(!reducer.receive(event(session: "future", sequence: 1, timestamp: now.addingTimeInterval(301), kind: .working), now: now))
+    }
+
+    private static func presentationStateUsesOneSafetyFirstPrecedence() throws {
+        let completedActivity = ActivitySnapshot(
+            generatedAt: now,
+            availability: .connected,
+            activities: [
+                .init(
+                    id: "session", projectName: "Project", state: .completed,
+                    subagentCount: 0, updatedAt: now
+                ),
+            ],
+            pendingApproval: nil
+        )
+        let working = progress(state: .working)
+        try expect(CodexActivityPresentation.resolve(
+            activity: completedActivity, progress: working, hasApproval: false
+        ) == .working)
+
+        let approvalActivity = ActivitySnapshot(
+            generatedAt: now,
+            availability: .connected,
+            activities: [
+                .init(
+                    id: "session", projectName: "Project", state: .approvalRequired,
+                    subagentCount: 0, updatedAt: now
+                ),
+            ],
+            pendingApproval: nil
+        )
+        try expect(CodexActivityPresentation.resolve(
+            activity: approvalActivity, progress: working, hasApproval: false
+        ) == .approvalRequired)
+
+        let idle = ActivitySnapshot(
+            generatedAt: now, availability: .connected, activities: [], pendingApproval: nil
+        )
+        try expect(CodexActivityPresentation.resolve(
+            activity: idle, progress: progress(state: .failed), hasApproval: false
+        ) == .failed)
+        try expect(CodexActivityPresentation.resolve(
+            activity: idle, progress: progress(state: .blocked), hasApproval: false
+        ) == .blocked)
+    }
+
+    private static func activityConsentRequiresAChoiceOrExistingInstallation() throws {
+        try expect(!CodexActivityConsentPolicy.resolved(
+            explicitValue: nil, integrationInstalled: false
+        ))
+        try expect(CodexActivityConsentPolicy.resolved(
+            explicitValue: nil, integrationInstalled: true
+        ))
+        try expect(!CodexActivityConsentPolicy.resolved(
+            explicitValue: false, integrationInstalled: true
+        ))
+        try expect(CodexActivityConsentPolicy.resolved(
+            explicitValue: true, integrationInstalled: false
+        ))
+    }
+
+    private static func progress(state: CodexAgentWorkState) -> CodexAgentProgressSnapshot {
+        CodexAgentProgressSnapshot(
+            taskID: "task",
+            title: "Task",
+            state: state,
+            phase: "Working",
+            planRevision: 1,
+            planLocked: true,
+            verifiedMilestones: 1,
+            totalMilestones: 2,
+            milestones: [
+                .init(
+                    id: "one", title: "One", state: .verified,
+                    evidence: "Test passed", evidenceAt: now
+                ),
+                .init(id: "two", title: "Two", state: .working, evidence: nil, evidenceAt: nil),
+            ],
+            agents: [],
+            updatedAt: now,
+            isStale: false
+        )
     }
 
     private static func event(

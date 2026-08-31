@@ -46,6 +46,11 @@
 		CDAA01222F60000100000001 /* CodexActivationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDAA01322F60000100000001 /* CodexActivationService.swift */; };
 		CDAA03102F60000100000001 /* CodexAgentProgressStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDAA03002F60000100000001 /* CodexAgentProgressStore.swift */; };
 		CDAA03112F60000100000001 /* CodexAgentProgressStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDAA03002F60000100000001 /* CodexAgentProgressStore.swift */; };
+		A55A00112F61000100000001 /* AssistantModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A55A00012F61000100000001 /* AssistantModels.swift */; };
+		A55A00122F61000100000001 /* AssistantServices.swift in Sources */ = {isa = PBXBuildFile; fileRef = A55A00022F61000100000001 /* AssistantServices.swift */; };
+		A55A00132F61000100000001 /* AssistantManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A55A00032F61000100000001 /* AssistantManager.swift */; };
+		A55A00142F61000100000001 /* AssistantViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = A55A00042F61000100000001 /* AssistantViews.swift */; };
+		A55A00152F61000100000001 /* AssistantPointerOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = A55A00052F61000100000001 /* AssistantPointerOverlay.swift */; };
 		CDAA00F12F60000100000001 /* libsqlite3.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = CDAA00F02F60000100000001 /* libsqlite3.tbd */; };
 		1100290C2E847E2800035A57 /* NSItemProvider+LoadHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100290B2E847E2800035A57 /* NSItemProvider+LoadHelpers.swift */; };
 		110029272E84FD4C00035A57 /* TemporaryFileStorageService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110029262E84FD4C00035A57 /* TemporaryFileStorageService.swift */; };
@@ -280,6 +285,11 @@
 		CDAA01312F60000100000001 /* IntegrationSelfTestService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = boringNotch/Codex/IntegrationSelfTestService.swift; sourceTree = "<group>"; };
 		CDAA01322F60000100000001 /* CodexActivationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = boringNotch/Codex/CodexActivationService.swift; sourceTree = "<group>"; };
 		CDAA03002F60000100000001 /* CodexAgentProgressStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = boringNotch/Codex/CodexAgentProgressStore.swift; sourceTree = "<group>"; };
+		A55A00012F61000100000001 /* AssistantModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = boringNotch/Assistant/AssistantModels.swift; sourceTree = "<group>"; };
+		A55A00022F61000100000001 /* AssistantServices.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = boringNotch/Assistant/AssistantServices.swift; sourceTree = "<group>"; };
+		A55A00032F61000100000001 /* AssistantManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = boringNotch/Assistant/AssistantManager.swift; sourceTree = "<group>"; };
+		A55A00042F61000100000001 /* AssistantViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = boringNotch/Assistant/AssistantViews.swift; sourceTree = "<group>"; };
+		A55A00052F61000100000001 /* AssistantPointerOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = boringNotch/Assistant/AssistantPointerOverlay.swift; sourceTree = "<group>"; };
 		CDAA00F02F60000100000001 /* libsqlite3.tbd */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.text-based-dylib-definition; path = usr/lib/libsqlite3.tbd; sourceTree = SDKROOT; };
 		1100290B2E847E2800035A57 /* NSItemProvider+LoadHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "NSItemProvider+LoadHelpers.swift"; sourceTree = "<group>"; };
 		110029262E84FD4C00035A57 /* TemporaryFileStorageService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TemporaryFileStorageService.swift; sourceTree = "<group>"; };
@@ -741,6 +751,7 @@
 		14CEF4092C5CAED200855D72 = {
 			isa = PBXGroup;
 			children = (
+				A55A00202F61000100000001 /* Assistant */,
 				56ADEC24744C402BA32C50A3 /* CodexActivityCore */,
 				CDAA00032F60000100000001 /* CodexHookInstaller.swift */,
 				CDAA00052F60000100000001 /* CodexLocalSessionObserver.swift */,
@@ -776,6 +787,18 @@
 				14CEF4132C5CAED300855D72 /* Products */,
 				14D031EC2C689DB70096E6A1 /* Frameworks */,
 			);
+			sourceTree = "<group>";
+		};
+		A55A00202F61000100000001 /* Assistant */ = {
+			isa = PBXGroup;
+			children = (
+				A55A00012F61000100000001 /* AssistantModels.swift */,
+				A55A00022F61000100000001 /* AssistantServices.swift */,
+				A55A00032F61000100000001 /* AssistantManager.swift */,
+				A55A00042F61000100000001 /* AssistantViews.swift */,
+				A55A00052F61000100000001 /* AssistantPointerOverlay.swift */,
+			);
+			name = Assistant;
 			sourceTree = "<group>";
 		};
 		56ADEC24744C402BA32C50A3 /* CodexActivityCore */ = {
@@ -1178,6 +1201,11 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A55A00112F61000100000001 /* AssistantModels.swift in Sources */,
+				A55A00122F61000100000001 /* AssistantServices.swift in Sources */,
+				A55A00132F61000100000001 /* AssistantManager.swift in Sources */,
+				A55A00142F61000100000001 /* AssistantViews.swift in Sources */,
+				A55A00152F61000100000001 /* AssistantPointerOverlay.swift in Sources */,
 				3AC30CE8B533490BB155ECA6 /* ActivitySnapshot.swift in Sources */,
 				9605C30BB6514B3BB8CE5992 /* CodexActivityReducer.swift in Sources */,
 				CDAA00112F60000100000001 /* CodexBridgeProtocol.swift in Sources */,
@@ -1685,7 +1713,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
-				MACOSX_DEPLOYMENT_TARGET = 26.5;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.qareai.boringNotchTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -1705,7 +1733,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
-				MACOSX_DEPLOYMENT_TARGET = 26.5;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.qareai.boringNotchTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";

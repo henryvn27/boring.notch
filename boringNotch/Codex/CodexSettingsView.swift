@@ -21,16 +21,63 @@ struct CodexSettingsView: View {
     @State private var capsLockStatus = "Not tested"
     @State private var diagnostics = ""
     @State private var confirmRemoval = false
+    @State private var isRunningSelfTest = false
+    @State private var isTestingCapsLock = false
+    @State private var copiedSetting: CopiedSetting?
 
     var body: some View {
         Form {
             Section {
-                LabeledContent("Hooks", value: manager.hookStatus.summary)
-                LabeledContent("Hook trust", value: manager.hookTrust.state.summary)
-                LabeledContent("Self-test", value: manager.selfTestStatus)
-                LabeledContent("Local bridge", value: manager.bridgeStatus)
-                LabeledContent("Transcript observation", value: manager.localObservationStatus)
-                LabeledContent("Codex executable", value: manager.executableStatus)
+                Toggle(
+                    "Monitor Codex activity on this Mac",
+                    isOn: Binding(
+                        get: { manager.isActivityEnabled },
+                        set: { enabled in
+                            do {
+                                try manager.setActivityEnabled(enabled)
+                                integrationError = nil
+                                refreshDiagnostics()
+                            } catch {
+                                integrationError = CodexActivityManager.sanitized(
+                                    error.localizedDescription
+                                )
+                            }
+                        }
+                    )
+                )
+            } header: {
+                Text("Activity access")
+            } footer: {
+                Text("When enabled, boring.notch observes local Codex lifecycle metadata and may read token counters or request official quota. It does not retain prompts or tool input in activity checkpoints. Existing installations stay enabled; new installs wait for your choice.")
+            }
+
+            if manager.isUITesting {
+                Section {
+                    Label(
+                        "Simulated Codex activity is shown for visual QA. Real integration health is hidden and cannot be changed here.",
+                        systemImage: "testtube.2"
+                    )
+                } header: {
+                    Text("Visual QA")
+                }
+            }
+
+            Section {
+                LabeledContent("Hooks", value: integrationStatus(manager.hookStatus.summary))
+                LabeledContent("Hook trust", value: integrationStatus(manager.hookTrust.state.summary))
+                LabeledContent("Self-test", value: integrationStatus(manager.selfTestStatus))
+                LabeledContent("Local bridge", value: manager.isUITesting ? "Simulated" : manager.bridgeStatus)
+                LabeledContent(
+                    "Transcript observation",
+                    value: manager.isUITesting ? "Off in visual QA" : manager.localObservationStatus
+                )
+                LabeledContent("Codex executable") {
+                    Text(manager.isUITesting ? "Hidden in visual QA" : manager.executableStatus)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .textSelection(.enabled)
+                        .help(manager.isUITesting ? "Hidden in visual QA" : manager.executableStatus)
+                }
 
                 if let integrationError {
                     Text(integrationError)
@@ -38,40 +85,55 @@ struct CodexSettingsView: View {
                         .foregroundStyle(.red)
                 }
 
-                HStack {
-                    Button(manager.hookStatus.isHealthy ? "Repair Integration" : "Install Integration") {
-                        do {
-                            try manager.installCodexIntegration()
-                            integrationError = nil
-                            refreshDiagnostics()
-                        } catch {
-                            integrationError = error.localizedDescription
+                if manager.isUITesting {
+                    Text("Integration changes are disabled in visual QA.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    HStack {
+                        Button(integrationActionTitle) {
+                            do {
+                                try manager.installCodexIntegration()
+                                integrationError = nil
+                                refreshDiagnostics()
+                            } catch {
+                                integrationError = CodexActivityManager.sanitized(
+                                    error.localizedDescription
+                                )
+                            }
                         }
-                    }
-                    Button("Remove Integration", role: .destructive) {
-                        confirmRemoval = true
-                    }
-                    .disabled(!manager.hookStatus.configurationExists && !manager.hookStatus.helperInstalled)
-                    Spacer()
-                    Button("Refresh") {
-                        manager.refreshCodexIntegrationStatus()
-                        manager.refreshHookTrust()
-                        refreshDiagnostics()
-                    }
-                }
-                HStack {
-                    Button("Check Trust") { manager.refreshHookTrust() }
-                    Button("Copy /hooks") {
-                        NSPasteboard.general.clearContents()
-                        NSPasteboard.general.setString("/hooks", forType: .string)
-                    }
-                    Button("Run Self-Test") {
-                        Task {
-                            await manager.runIntegrationSelfTest()
+                        Button("Remove Integration", role: .destructive) {
+                            confirmRemoval = true
+                        }
+                        .disabled(
+                            !manager.hookStatus.configurationExists
+                                && !manager.hookStatus.helperInstalled
+                        )
+                        Spacer()
+                        Button("Refresh") {
+                            manager.refreshCodexIntegrationStatus()
+                            manager.refreshHookTrust()
                             refreshDiagnostics()
                         }
                     }
-                    .disabled(!manager.hookStatus.helperInstalled)
+                    HStack {
+                        Button("Check Trust") { manager.refreshHookTrust() }
+                        Button(copiedSetting == .hooks ? "Copied /hooks" : "Copy /hooks") {
+                            NSPasteboard.general.clearContents()
+                            if NSPasteboard.general.setString("/hooks", forType: .string) {
+                                markCopied(.hooks)
+                            }
+                        }
+                        Button(isRunningSelfTest ? "Running Self-Test…" : "Run Self-Test") {
+                            Task {
+                                isRunningSelfTest = true
+                                await manager.runIntegrationSelfTest()
+                                isRunningSelfTest = false
+                                refreshDiagnostics()
+                            }
+                        }
+                        .disabled(!manager.hookStatus.helperInstalled || isRunningSelfTest)
+                    }
                 }
             } header: {
                 Text("Integration")
@@ -90,7 +152,7 @@ struct CodexSettingsView: View {
                 Button(usage.isRefreshing ? "Refreshing Quota…" : "Refresh Official Quota") {
                     usage.refresh()
                 }
-                .disabled(usage.isRefreshing)
+                .disabled(usage.isRefreshing || !manager.isActivityEnabled)
                 if let error = usage.errorMessage {
                     Text(error).font(.caption).foregroundStyle(.secondary)
                 }
@@ -99,6 +161,7 @@ struct CodexSettingsView: View {
             } footer: {
                 Text("Quota percentages describe account capacity only. boring.notch never treats them as task-completion estimates. Approval timeout changes apply after restarting the app.")
             }
+            .disabled(!manager.isActivityEnabled)
 
             Section {
                 Toggle("Enable Caps Lock signaling", isOn: $capsLockSignals)
@@ -112,20 +175,23 @@ struct CodexSettingsView: View {
                 )
                 .disabled(!capsLockSignals)
                 LabeledContent("Support", value: capsLockStatus)
-                Button("Test Caps Lock Signal") {
+                Button(isTestingCapsLock ? "Testing Caps Lock Signal…" : "Test Caps Lock Signal") {
                     Task {
+                        isTestingCapsLock = true
                         let result = await manager.testCapsLockSignal()
                         capsLockStatus = result == .available
                             ? "Native HID signal test passed" : result.summary
                         if result != .available { capsLockSignals = false }
+                        isTestingCapsLock = false
                     }
                 }
-                .disabled(!capsLockSignals)
+                .disabled(!capsLockSignals || isTestingCapsLock)
             } header: {
                 Text("Caps Lock signal")
             } footer: {
                 Text("Signals always restore the original Caps Lock state. Approval attention remains inverted only while an exact request is pending. macOS may require Input Monitoring or Accessibility permission.")
             }
+            .disabled(!manager.isActivityEnabled)
 
             Section {
                 Toggle("Estimate API-price equivalent from local transcripts", isOn: $localCostEstimate)
@@ -172,6 +238,7 @@ struct CodexSettingsView: View {
             } footer: {
                 Text("The local number is an API-price equivalent, not a subscription bill. It reads token counters only and never retains prompt or tool content. The reset forecast is opt-in network data from an attributed third party.")
             }
+            .disabled(!manager.isActivityEnabled)
 
             ProviderAccountsSettingsSection()
 
@@ -189,6 +256,7 @@ struct CodexSettingsView: View {
                 }
                 HStack {
                     Button("Refresh Checkpoint") { manager.refreshAgentProgress() }
+                        .disabled(!manager.isActivityEnabled)
                     Spacer()
                     Link(
                         "Protocol",
@@ -198,7 +266,7 @@ struct CodexSettingsView: View {
             } header: {
                 Text("Agent progress")
             } footer: {
-                Text("boring.notch shows one aggregate bar only for a locked plan, and computes it from evidence-backed verified milestones. Agents never submit raw percentages or individual bars.")
+                Text("boring.notch shows one aggregate bar only for a current, locked plan, computed from agent-reported verified milestones with timestamped evidence. It exposes the latest evidence label but does not rerun the underlying check. Agents never submit raw percentages or individual bars.")
             }
 
             Section {
@@ -208,9 +276,14 @@ struct CodexSettingsView: View {
                     .textSelection(.enabled)
 
                 HStack {
-                    Button("Copy Diagnostics") {
+                    Button(
+                        copiedSetting == .diagnostics
+                            ? "Diagnostics Copied" : "Copy Diagnostics"
+                    ) {
                         NSPasteboard.general.clearContents()
-                        NSPasteboard.general.setString(diagnostics, forType: .string)
+                        if NSPasteboard.general.setString(diagnostics, forType: .string) {
+                            markCopied(.diagnostics)
+                        }
                     }
                     Spacer()
                     Button("Refresh Diagnostics") { refreshDiagnostics() }
@@ -235,7 +308,7 @@ struct CodexSettingsView: View {
                     integrationError = nil
                     refreshDiagnostics()
                 } catch {
-                    integrationError = error.localizedDescription
+                    integrationError = CodexActivityManager.sanitized(error.localizedDescription)
                 }
             }
             Button("Cancel", role: .cancel) {}
@@ -246,5 +319,28 @@ struct CodexSettingsView: View {
 
     private func refreshDiagnostics() {
         diagnostics = manager.diagnosticsReport()
+    }
+
+    private func integrationStatus(_ value: String) -> String {
+        manager.isUITesting ? "Hidden in visual QA" : value
+    }
+
+    private var integrationActionTitle: String {
+        if manager.hookStatus.isHealthy { return "Repair Integration" }
+        if manager.hookStatus.hasLegacyIntegration { return "Migrate Cowlick Integration" }
+        return "Install Integration"
+    }
+
+    private func markCopied(_ setting: CopiedSetting) {
+        copiedSetting = setting
+        Task {
+            try? await Task.sleep(for: .seconds(1.5))
+            if copiedSetting == setting { copiedSetting = nil }
+        }
+    }
+
+    private enum CopiedSetting {
+        case hooks
+        case diagnostics
     }
 }

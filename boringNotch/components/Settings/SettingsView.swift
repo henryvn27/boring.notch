@@ -9,7 +9,7 @@ import Sparkle
 import SwiftUI
 import SwiftUIIntrospect
 
-private enum SettingsTab: String, CaseIterable, Identifiable {
+enum SettingsTab: String, CaseIterable, Identifiable {
     case general
     case appearance
     case media
@@ -19,6 +19,7 @@ private enum SettingsTab: String, CaseIterable, Identifiable {
     case shelf
     case mirror
     case shortcuts
+    case assistant
     case codex
     case advanced
     case about
@@ -36,6 +37,7 @@ private enum SettingsTab: String, CaseIterable, Identifiable {
         case .shelf: "Shelf"
         case .mirror: "Mirror"
         case .shortcuts: "Shortcuts"
+        case .assistant: "Assistant"
         case .codex: "Codex"
         case .advanced: "Advanced"
         case .about: "About"
@@ -53,6 +55,7 @@ private enum SettingsTab: String, CaseIterable, Identifiable {
         case .shelf: "books.vertical"
         case .mirror: "camera"
         case .shortcuts: "keyboard"
+        case .assistant: "waveform.circle"
         case .codex: "terminal"
         case .advanced: "gearshape.2"
         case .about: "info.circle"
@@ -66,8 +69,12 @@ struct SettingsView: View {
 
     let updaterController: SPUStandardUpdaterController?
 
-    init(updaterController: SPUStandardUpdaterController? = nil) {
+    init(
+        updaterController: SPUStandardUpdaterController? = nil,
+        selectedTab: SettingsTab = .general
+    ) {
         self.updaterController = updaterController
+        _selectedTab = State(initialValue: selectedTab)
     }
 
     var body: some View {
@@ -103,6 +110,8 @@ struct SettingsView: View {
                     MirrorSettings()
                 case .shortcuts:
                     Shortcuts()
+                case .assistant:
+                    AssistantSettingsView()
                 case .codex:
                     CodexSettingsView()
                 case .advanced:

@@ -50,12 +50,22 @@ struct CodexCompactActivityView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var activity: ActivitySnapshot.Activity? { manager.snapshot.activities.first }
+    private var presentationState: CodexActivityPresentationState {
+        CodexActivityPresentation.resolve(
+            activity: manager.snapshot,
+            progress: manager.progressSnapshot,
+            hasApproval: manager.currentApproval != nil
+        )
+    }
+    private var displayName: String {
+        manager.progressSnapshot?.title ?? activity?.projectName ?? "Codex"
+    }
 
     var body: some View {
         Button(action: action) {
             HStack(spacing: 0) {
                 compactWing(alignment: .trailing) {
-                    Text(activity?.projectName ?? "Codex")
+                    Text(displayName)
                         .lineLimit(1)
                         .truncationMode(.tail)
                 }
@@ -89,40 +99,53 @@ struct CodexCompactActivityView: View {
 
     @ViewBuilder
     private var stateIcon: some View {
-        switch activity?.state {
+        switch presentationState {
         case .approvalRequired:
             Image(systemName: "exclamationmark.shield.fill").foregroundStyle(.orange)
         case .failed:
             Image(systemName: "xmark.circle.fill").foregroundStyle(.red)
+        case .stale:
+            Image(systemName: "clock.badge.exclamationmark.fill").foregroundStyle(.orange)
+        case .blocked:
+            Image(systemName: "exclamationmark.octagon.fill").foregroundStyle(.orange)
         case .completed:
             Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
         case .working:
-            ProgressView().controlSize(.mini).tint(.white.opacity(0.75))
-        case nil:
+            if reduceMotion {
+                Image(systemName: "circle.fill").foregroundStyle(Color.effectiveAccent)
+            } else {
+                ProgressView().controlSize(.mini).tint(.white.opacity(0.75))
+            }
+        case .idle:
             Image(systemName: "terminal").foregroundStyle(.secondary)
         }
     }
 
     private var statusText: String {
-        if let progress = manager.progressSnapshot {
-            if progress.isStale { return "Checkpoint stale" }
-            if progress.planLocked { return "\(progress.verifiedMilestones)/\(progress.totalMilestones) checks" }
-            return progress.phase
+        switch presentationState {
+        case .approvalRequired: return "Approval"
+        case .failed: return "Failed"
+        case .stale: return "Checkpoint stale"
+        case .blocked: return "Blocked"
+        case .completed: return "Done"
+        case .idle: return "Ready"
+        case .working:
+            if let progress = manager.progressSnapshot, progress.planLocked,
+               progress.verifiedMilestones < progress.totalMilestones
+            {
+                return "\(progress.verifiedMilestones)/\(progress.totalMilestones) checks"
+            }
+            guard let activity, activity.subagentCount > 0 else { return "Working" }
+            return "Working · \(activity.subagentCount) agent\(activity.subagentCount == 1 ? "" : "s")"
         }
-        guard let activity else { return "Ready" }
-        let base: String
-        switch activity.state {
-        case .approvalRequired: base = "Approval"
-        case .failed: base = "Failed"
-        case .working: base = "Working"
-        case .completed: base = "Done"
-        }
-        guard activity.subagentCount > 0 else { return base }
-        return "\(base) · \(activity.subagentCount) agent\(activity.subagentCount == 1 ? "" : "s")"
     }
 
     private var accessibilityLabel: String {
-        [activity?.projectName, statusText].compactMap { $0 }.joined(separator: ", ")
+        var parts = [displayName, statusText]
+        if let progress = manager.progressSnapshot, presentationState == .working {
+            parts.append(progress.checkpointLabel)
+        }
+        return parts.joined(separator: ", ")
     }
 }
 
@@ -146,6 +169,8 @@ struct CodexActivityPanel: View {
     @ObservedObject private var cost = CodexCostManager.shared
     @Default(.codexShowQuota) private var showQuota
     @State private var integrationError: String?
+    @State private var copiedApprovalID: UUID?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         Group {
@@ -175,11 +200,11 @@ struct CodexActivityPanel: View {
                 }
                 Spacer()
                 Button {
-                    SettingsWindowController.shared.showWindow()
+                    SettingsWindowController.shared.showWindow(selectedTab: .codex)
                 } label: {
                     Image(systemName: "gearshape")
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.borderless)
                 .help("Codex settings")
                 .accessibilityLabel("Codex settings")
             }
@@ -188,53 +213,88 @@ struct CodexActivityPanel: View {
 
             Divider().overlay(.white.opacity(0.12))
 
-            if let progress = manager.progressSnapshot {
-                agentProgressView(progress)
-                Divider().overlay(.white.opacity(0.12))
-            }
-
-            if manager.snapshot.activities.isEmpty {
-                emptyState
-            } else {
-                ScrollView(.vertical, showsIndicators: false) {
-                    LazyVStack(alignment: .leading, spacing: 3) {
-                        ForEach(manager.snapshot.activities.prefix(5), id: \.id) { activity in
-                            activityRow(activity)
+            ScrollView(.vertical, showsIndicators: false) {
+                LazyVStack(alignment: .leading, spacing: 0) {
+                    if !manager.snapshot.activities.isEmpty {
+                        LazyVStack(alignment: .leading, spacing: 3) {
+                            ForEach(manager.snapshot.activities.prefix(5), id: \.id) { activity in
+                                activityRow(activity)
+                            }
+                        }
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 7)
+                        if manager.snapshot.activities.count > 5 {
+                            Text("+\(manager.snapshot.activities.count - 5) more sessions")
+                                .font(.system(size: 9.5))
+                                .foregroundStyle(.white.opacity(0.62))
+                                .padding(.horizontal, 14)
+                                .padding(.bottom, 7)
+                                .accessibilityLabel(
+                                    "\(manager.snapshot.activities.count - 5) more Codex sessions"
+                                )
                         }
                     }
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 7)
+
+                    if let progress = manager.progressSnapshot {
+                        if !manager.snapshot.activities.isEmpty {
+                            Divider().overlay(.white.opacity(0.12))
+                        }
+                        agentProgressView(progress)
+                    }
+
+                    if manager.snapshot.activities.isEmpty && manager.progressSnapshot == nil
+                        && manager.progressError == nil
+                    {
+                        emptyState
+                    }
+
+                    if let progressError = manager.progressError {
+                        if !manager.snapshot.activities.isEmpty || manager.progressSnapshot != nil {
+                            Divider().overlay(.white.opacity(0.12))
+                        }
+                        progressErrorView(progressError)
+                    }
+
+                    if manager.isActivityEnabled && showQuota
+                        && (usage.snapshot != nil || usage.isRefreshing)
+                    {
+                        Divider().overlay(.white.opacity(0.12))
+                        usageView
+                    }
+
+                    if manager.isActivityEnabled
+                        && !manager.isUITesting
+                        && (!manager.hookStatus.isHealthy
+                            || manager.bridgeError != nil || integrationError != nil)
+                    {
+                        Divider().overlay(.white.opacity(0.12))
+                        integrationView
+                    }
                 }
-            }
-
-            if showQuota && (usage.snapshot != nil || usage.isRefreshing) {
-                Divider().overlay(.white.opacity(0.12))
-                usageView
-            }
-
-            if !manager.hookStatus.isHealthy || integrationError != nil {
-                Divider().overlay(.white.opacity(0.12))
-                integrationView
             }
         }
     }
 
     private func agentProgressView(_ progress: CodexAgentProgressSnapshot) -> some View {
-        VStack(alignment: .leading, spacing: 7) {
+        VStack(alignment: .leading, spacing: 8) {
             HStack {
                 VStack(alignment: .leading, spacing: 1) {
                     Text(progress.title)
                         .font(.system(size: 11.5, weight: .semibold))
                         .lineLimit(1)
-                    Text(progress.isStale ? "Checkpoint is stale" : progress.phase)
-                        .font(.system(size: 9.5))
-                        .foregroundStyle(.white.opacity(0.55))
+                    Text(progressPhaseLabel(progress))
+                        .font(.system(size: 10))
+                        .foregroundStyle(.white.opacity(0.68))
                         .lineLimit(1)
                 }
                 Spacer()
-                Text(progress.checkpointLabel)
-                    .font(.system(size: 9.5, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.62))
+                Label(
+                    progress.checkpointLabel,
+                    systemImage: progress.isComplete ? "checkmark.seal.fill" : "checklist"
+                )
+                .font(.system(size: 9.5, weight: .medium))
+                .foregroundStyle(progress.isComplete ? Color.green : Color.white.opacity(0.72))
+                .lineLimit(1)
             }
             if let fraction = progress.checkpointFraction {
                 ProgressView(value: fraction)
@@ -243,10 +303,24 @@ struct CodexActivityPanel: View {
                     .accessibilityLabel("Verified task checkpoints")
                     .accessibilityValue(progress.checkpointLabel)
             }
+            if let milestone = progress.latestVerifiedMilestone,
+               let evidence = milestone.evidence
+            {
+                VStack(alignment: .leading, spacing: 2) {
+                    Label("Latest reported evidence · \(milestone.title)", systemImage: "checkmark.circle.fill")
+                        .font(.system(size: 9.5, weight: .semibold))
+                        .foregroundStyle(.green)
+                    Text(evidence)
+                        .font(.system(size: 9.5))
+                        .foregroundStyle(.white.opacity(0.68))
+                        .lineLimit(2)
+                }
+                .accessibilityElement(children: .combine)
+            }
             if !progress.agents.isEmpty {
                 Text(agentSummary(progress.agents))
-                    .font(.system(size: 9.5))
-                    .foregroundStyle(.white.opacity(0.48))
+                    .font(.system(size: 9.5, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.68))
                     .lineLimit(1)
                 VStack(alignment: .leading, spacing: 4) {
                     ForEach(progress.agents.prefix(3)) { agent in
@@ -254,8 +328,8 @@ struct CodexActivityPanel: View {
                     }
                     if progress.agents.count > 3 {
                         Text("+\(progress.agents.count - 3) more agents")
-                            .font(.system(size: 9))
-                            .foregroundStyle(.white.opacity(0.42))
+                            .font(.system(size: 9.5))
+                            .foregroundStyle(.white.opacity(0.62))
                     }
                 }
             }
@@ -267,9 +341,9 @@ struct CodexActivityPanel: View {
 
     private func agentProgressRow(_ agent: CodexAgentProgressSnapshot.Agent) -> some View {
         HStack(spacing: 6) {
-            Image(systemName: agentStateIcon(agent.state))
+            Image(systemName: agentStateIcon(agent))
                 .font(.system(size: 8, weight: .semibold))
-                .foregroundStyle(agentStateColor(agent.state))
+                .foregroundStyle(agentStateColor(agent))
                 .frame(width: 10)
             Text(agent.title)
                 .font(.system(size: 9.5, weight: .medium))
@@ -278,52 +352,63 @@ struct CodexActivityPanel: View {
                 .foregroundStyle(.white.opacity(0.28))
             Text(agent.phase)
                 .font(.system(size: 9.5))
-                .foregroundStyle(.white.opacity(0.55))
+                .foregroundStyle(.white.opacity(0.68))
                 .lineLimit(1)
             Spacer(minLength: 0)
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(agent.title)
-        .accessibilityValue("\(agentStateLabel(agent.state)), \(agent.phase)")
+        .accessibilityValue("\(agentStateLabel(agent)), \(agent.phase)")
     }
 
     private func agentSummary(_ agents: [CodexAgentProgressSnapshot.Agent]) -> String {
         let working = agents.count { $0.state == .working }
         let blocked = agents.count { $0.state == .blocked }
+        let stale = agents.count { $0.isStale }
         var parts = ["\(agents.count) agent\(agents.count == 1 ? "" : "s")"]
         if working > 0 { parts.append("\(working) working") }
         if blocked > 0 { parts.append("\(blocked) blocked") }
+        if stale > 0 { parts.append("\(stale) stale") }
         return parts.joined(separator: " · ")
     }
 
-    private func agentStateIcon(_ state: CodexAgentWorkState) -> String {
-        switch state {
-        case .planning: "circle.dotted"
-        case .working: "circle.fill"
-        case .blocked: "exclamationmark.circle.fill"
-        case .completed: "checkmark.circle.fill"
-        case .failed: "xmark.circle.fill"
+    private func agentStateIcon(_ agent: CodexAgentProgressSnapshot.Agent) -> String {
+        if agent.isStale { return "clock.badge.exclamationmark.fill" }
+        switch agent.state {
+        case .planning: return "circle.dotted"
+        case .working: return "circle.fill"
+        case .blocked: return "exclamationmark.circle.fill"
+        case .completed: return "checkmark.circle.fill"
+        case .failed: return "xmark.circle.fill"
         }
     }
 
-    private func agentStateColor(_ state: CodexAgentWorkState) -> Color {
-        switch state {
-        case .planning: .white.opacity(0.55)
-        case .working: .effectiveAccent
-        case .blocked: .orange
-        case .completed: .green
-        case .failed: .red
+    private func agentStateColor(_ agent: CodexAgentProgressSnapshot.Agent) -> Color {
+        if agent.isStale { return .orange }
+        switch agent.state {
+        case .planning: return .white.opacity(0.55)
+        case .working: return .effectiveAccent
+        case .blocked: return .orange
+        case .completed: return .green
+        case .failed: return .red
         }
     }
 
-    private func agentStateLabel(_ state: CodexAgentWorkState) -> String {
-        switch state {
-        case .planning: "Planning"
-        case .working: "Working"
-        case .blocked: "Blocked"
-        case .completed: "Completed"
-        case .failed: "Failed"
+    private func agentStateLabel(_ agent: CodexAgentProgressSnapshot.Agent) -> String {
+        if agent.isStale { return "Stale" }
+        switch agent.state {
+        case .planning: return "Planning"
+        case .working: return "Working"
+        case .blocked: return "Blocked"
+        case .completed: return "Completed"
+        case .failed: return "Failed"
         }
+    }
+
+    private func progressPhaseLabel(_ progress: CodexAgentProgressSnapshot) -> String {
+        if progress.isStale { return "Checkpoint is stale — verify before trusting it" }
+        if progress.isComplete { return "Completed with verified evidence" }
+        return progress.phase
     }
 
     private var usageView: some View {
@@ -341,7 +426,7 @@ struct CodexActivityPanel: View {
                     } label: {
                         Image(systemName: "arrow.clockwise")
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.borderless)
                     .help("Refresh Codex quota")
                     .accessibilityLabel("Refresh Codex quota")
                 }
@@ -412,17 +497,44 @@ struct CodexActivityPanel: View {
 
     private var emptyState: some View {
         VStack(spacing: 6) {
-            Image(systemName: "terminal")
+            Image(systemName: manager.isActivityEnabled ? "terminal" : "eye.slash")
                 .font(.system(size: 20, weight: .medium))
                 .foregroundStyle(.white.opacity(0.45))
-            Text("No active Codex work")
+            Text(manager.isActivityEnabled ? "No active Codex work" : "Codex activity is off")
                 .font(.system(size: 12.5, weight: .semibold))
-            Text("Sessions appear here as Codex starts working.")
+            Text(
+                manager.isActivityEnabled
+                    ? "Sessions appear here as Codex starts working."
+                    : "Turn it on in Codex settings when you want local monitoring."
+            )
                 .font(.system(size: 10.5))
                 .foregroundStyle(.white.opacity(0.55))
         }
         .frame(maxWidth: .infinity, minHeight: 88)
         .accessibilityElement(children: .combine)
+    }
+
+    private func progressErrorView(_ error: String) -> some View {
+        HStack(spacing: 9) {
+            Image(systemName: "doc.badge.exclamationmark")
+                .foregroundStyle(.orange)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Agent checkpoint unavailable")
+                    .font(.system(size: 11.5, weight: .semibold))
+                Text(error)
+                    .font(.system(size: 10))
+                    .foregroundStyle(.white.opacity(0.68))
+                    .lineLimit(2)
+            }
+            Spacer()
+            Button("Retry") { manager.refreshAgentProgress() }
+                .controlSize(.small)
+                .buttonStyle(.bordered)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+        .accessibilityElement(children: .contain)
     }
 
     private func activityRow(_ activity: ActivitySnapshot.Activity) -> some View {
@@ -446,7 +558,12 @@ struct CodexActivityPanel: View {
     @ViewBuilder
     private func rowIcon(_ state: ActivitySnapshot.Activity.State) -> some View {
         switch state {
-        case .working: ProgressView().controlSize(.mini).tint(.white.opacity(0.72))
+        case .working:
+            if reduceMotion {
+                Image(systemName: "circle.fill").foregroundStyle(Color.effectiveAccent)
+            } else {
+                ProgressView().controlSize(.mini).tint(.white.opacity(0.72))
+            }
         case .approvalRequired: Image(systemName: "exclamationmark").foregroundStyle(.orange)
         case .completed: Image(systemName: "checkmark").foregroundStyle(.green)
         case .failed: Image(systemName: "xmark").foregroundStyle(.red)
@@ -471,20 +588,24 @@ struct CodexActivityPanel: View {
                 .foregroundStyle(.orange)
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 2) {
-                Text("Codex integration needs attention")
+                Text(integrationTitle)
                     .font(.system(size: 11.5, weight: .semibold))
-                Text(integrationError ?? manager.hookStatus.summary)
+                Text(integrationError ?? manager.bridgeError ?? manager.hookStatus.summary)
                     .font(.system(size: 10))
                     .foregroundStyle(.white.opacity(0.58))
                     .lineLimit(2)
             }
             Spacer()
-            Button("Repair") {
+            Button(integrationActionTitle) {
                 do {
-                    try manager.installCodexIntegration()
+                    if manager.hookStatus.isHealthy, manager.bridgeError != nil {
+                        try manager.retryActivityServices()
+                    } else {
+                        try manager.installCodexIntegration()
+                    }
                     integrationError = nil
                 } catch {
-                    integrationError = error.localizedDescription
+                    integrationError = CodexActivityManager.sanitized(error.localizedDescription)
                 }
             }
             .controlSize(.small)
@@ -494,8 +615,29 @@ struct CodexActivityPanel: View {
         .padding(.vertical, 8)
     }
 
+    private var integrationTitle: String {
+        manager.hookStatus.isHealthy && manager.bridgeError != nil
+            ? "Codex connection needs attention" : "Codex integration needs attention"
+    }
+
+    private var integrationActionTitle: String {
+        if manager.hookStatus.isHealthy, manager.bridgeError != nil { return "Retry" }
+        if manager.hookStatus.hasLegacyIntegration { return "Migrate" }
+        if manager.hookStatus.installedEvents.isEmpty && !manager.hookStatus.helperInstalled {
+            return "Install"
+        }
+        return "Repair"
+    }
+
     private func approvalView(_ request: CodexApprovalRequest) -> some View {
-        VStack(alignment: .leading, spacing: 9) {
+        TimelineView(.periodic(from: .now, by: 1)) { context in
+            approvalContent(request, now: context.date)
+        }
+    }
+
+    private func approvalContent(_ request: CodexApprovalRequest, now: Date) -> some View {
+        let secondsRemaining = max(0, Int(ceil(request.expiresAt.timeIntervalSince(now))))
+        return VStack(alignment: .leading, spacing: 9) {
             HStack(spacing: 8) {
                 Image(systemName: "exclamationmark.shield.fill")
                     .foregroundStyle(.orange)
@@ -507,6 +649,11 @@ struct CodexActivityPanel: View {
                         .foregroundStyle(.white.opacity(0.58))
                 }
                 Spacer()
+                Text(secondsRemaining > 0 ? "Defers safely in \(secondsRemaining)s" : "Deferred safely")
+                    .font(.system(size: 10, weight: .medium, design: .rounded))
+                    .monospacedDigit()
+                    .foregroundStyle(secondsRemaining > 5 ? Color.white.opacity(0.7) : Color.orange)
+                    .fixedSize()
             }
 
             Text(request.reason)
@@ -514,11 +661,18 @@ struct CodexActivityPanel: View {
                 .foregroundStyle(.white.opacity(0.88))
                 .lineLimit(2)
 
-            Text(request.operation)
-                .font(.system(size: 10.5, design: .monospaced))
-                .foregroundStyle(.white.opacity(0.6))
-                .lineLimit(3)
-                .textSelection(.enabled)
+            ScrollView(.vertical, showsIndicators: true) {
+                Text(request.operation)
+                    .font(.system(size: 10.5, design: .monospaced))
+                    .foregroundStyle(.white.opacity(0.76))
+                    .textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .frame(minHeight: 40, maxHeight: 78)
+            .padding(7)
+            .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 6))
+            .accessibilityLabel("Requested operation")
 
             HStack(spacing: 8) {
                 Button("Deny") {
@@ -526,15 +680,24 @@ struct CodexActivityPanel: View {
                 }
                 .buttonStyle(.bordered)
                 .keyboardShortcut("d", modifiers: .command)
-                Button {
+                Button(copiedApprovalID == request.id ? "Copied" : "Copy") {
                     NSPasteboard.general.clearContents()
-                    NSPasteboard.general.setString(request.operation, forType: .string)
-                } label: {
-                    Image(systemName: "doc.on.doc")
+                    if NSPasteboard.general.setString(request.operation, forType: .string) {
+                        copiedApprovalID = request.id
+                        Task {
+                            try? await Task.sleep(for: .seconds(1.5))
+                            if copiedApprovalID == request.id { copiedApprovalID = nil }
+                        }
+                    }
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.bordered)
                 .help("Copy operation")
-                .accessibilityLabel("Copy operation")
+                Button("Not now") {
+                    manager.resolveApproval(id: request.id, decision: .deferDecision)
+                }
+                .buttonStyle(.bordered)
+                .keyboardShortcut(.cancelAction)
+                .help("Return this request to Codex without allowing or denying it")
                 Button("Open Codex") {
                     CodexActivationService.openCodex(fallbackDirectory: request.workingDirectory)
                 }
@@ -544,6 +707,7 @@ struct CodexActivityPanel: View {
                     manager.resolveApproval(id: request.id, decision: .allow)
                 }
                 .buttonStyle(.borderedProminent)
+                .disabled(secondsRemaining == 0)
             }
             .controlSize(.small)
         }
@@ -552,38 +716,60 @@ struct CodexActivityPanel: View {
         .accessibilityElement(children: .contain)
     }
 
-    private var primaryActivity: ActivitySnapshot.Activity? { manager.snapshot.activities.first }
+    private var presentationState: CodexActivityPresentationState {
+        CodexActivityPresentation.resolve(
+            activity: manager.snapshot,
+            progress: manager.progressSnapshot,
+            hasApproval: manager.currentApproval != nil
+        )
+    }
 
     private var headerTitle: String {
-        switch primaryActivity?.state {
-        case .working: "Codex is working"
+        switch presentationState {
         case .approvalRequired: "Approval required"
-        case .completed: "Codex finished"
         case .failed: "Codex needs attention"
-        case nil: "Codex activity"
+        case .stale: "Codex update is stale"
+        case .blocked: "Codex is blocked"
+        case .working: "Codex is working"
+        case .completed: "Codex finished"
+        case .idle: "Codex activity"
         }
     }
 
     private var activitySummary: String {
         let active = manager.snapshot.activities.count { $0.state == .working || $0.state == .approvalRequired }
-        let agents = manager.snapshot.activities.reduce(0) { $0 + $1.subagentCount }
-        if active == 0 { return manager.snapshot.availability == .stale ? "Activity may be stale" : "Ready" }
-        return "\(active) active session\(active == 1 ? "" : "s")" + (agents > 0 ? " · \(agents) agent\(agents == 1 ? "" : "s")" : "")
+        let lifecycleAgents = manager.snapshot.activities.reduce(0) { $0 + $1.subagentCount }
+        let checkpointAgents = manager.progressSnapshot?.agents.count ?? 0
+        switch presentationState {
+        case .approvalRequired: return "Review the complete operation before allowing it"
+        case .failed: return "A session or agent reported failure"
+        case .stale: return "The last active update is too old to trust"
+        case .blocked: return "A reported agent or task cannot continue"
+        case .completed: return "Reported work finished"
+        case .idle: return manager.isActivityEnabled ? "Ready" : "Activity monitoring is off"
+        case .working:
+            let sessions = active > 0 ? "\(active) active session\(active == 1 ? "" : "s")" : "Checkpoint active"
+            let agents = max(lifecycleAgents, checkpointAgents)
+            return sessions + (agents > 0 ? " · \(agents) agent\(agents == 1 ? "" : "s")" : "")
+        }
     }
 
     private var headerIcon: String {
-        switch primaryActivity?.state {
-        case .working: "waveform.path"
-        case .approvalRequired: "exclamationmark.shield"
-        case .completed: "checkmark.circle.fill"
+        switch presentationState {
+        case .approvalRequired: "exclamationmark.shield.fill"
         case .failed: "xmark.circle.fill"
-        case nil: "terminal"
+        case .stale: "clock.badge.exclamationmark.fill"
+        case .blocked: "exclamationmark.octagon.fill"
+        case .working: "waveform.path"
+        case .completed: "checkmark.circle.fill"
+        case .idle: "terminal"
         }
     }
 
     private var headerColor: Color {
-        switch primaryActivity?.state {
+        switch presentationState {
         case .approvalRequired: .orange
+        case .blocked, .stale: .orange
         case .completed: .green
         case .failed: .red
         default: .secondary

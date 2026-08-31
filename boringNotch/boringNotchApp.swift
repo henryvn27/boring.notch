@@ -74,6 +74,8 @@ final class CodexActivityManager: ObservableObject {
     @Published private(set) var progressSnapshot: CodexAgentProgressSnapshot?
     @Published private(set) var progressError: String?
     @Published private(set) var approvalRequests: [CodexApprovalRequest] = []
+    @Published private(set) var isActivityEnabled = false
+    let isUITesting = CommandLine.arguments.contains("--ui-testing")
 
     private var reducer = CodexActivityReducer()
     private var nextLocalSequence = 0
@@ -86,6 +88,7 @@ final class CodexActivityManager: ObservableObject {
         Task { @MainActor in self?.receive(event) }
     }
     private var refreshTask: Task<Void, Never>?
+    private var didResolveActivityConsent = false
     private lazy var server = CodexBridgeServer(
         approvalTimeout: Defaults[.codexApprovalTimeout]
     ) { [weak self] event in
@@ -93,6 +96,46 @@ final class CodexActivityManager: ObservableObject {
     }
 
     func start() {
+        guard !didResolveActivityConsent else { return }
+        didResolveActivityConsent = true
+        hookStatus = hookInstaller.status()
+        let explicitValue = UserDefaults.standard.object(forKey: "codexActivityEnabled") as? Bool
+        let integrationInstalled = hookStatus.helperInstalled || !hookStatus.installedEvents.isEmpty
+        isActivityEnabled = CodexActivityConsentPolicy.resolved(
+            explicitValue: explicitValue,
+            integrationInstalled: integrationInstalled
+        )
+        Defaults[.codexActivityEnabled] = isActivityEnabled
+        guard isActivityEnabled else {
+            bridgeError = nil
+            return
+        }
+        do {
+            try startActivityServices()
+        } catch {
+            bridgeError = Self.sanitized(error.localizedDescription)
+            reducer.disconnect()
+            snapshot = reducer.snapshot()
+        }
+    }
+
+    func setActivityEnabled(_ enabled: Bool) throws {
+        Defaults[.codexActivityEnabled] = enabled
+        isActivityEnabled = enabled
+        if enabled {
+            do {
+                try startActivityServices()
+            } catch {
+                isActivityEnabled = false
+                Defaults[.codexActivityEnabled] = false
+                throw error
+            }
+        } else {
+            stopActivityServices()
+        }
+    }
+
+    private func startActivityServices() throws {
         guard refreshTask == nil else { return }
         do {
             try hookInstaller.refreshInstalledHelperIfNeeded()
@@ -115,13 +158,16 @@ final class CodexActivityManager: ObservableObject {
                 }
             }
         } catch {
-            bridgeError = error.localizedDescription
-            reducer.disconnect()
-            snapshot = reducer.snapshot()
+            stopActivityServices()
+            throw error
         }
     }
 
     func stop() {
+        stopActivityServices()
+    }
+
+    private func stopActivityServices() {
         for requestID in Array(approvalContinuations.keys) {
             resolveApproval(id: requestID, decision: .deferDecision)
         }
@@ -134,15 +180,19 @@ final class CodexActivityManager: ObservableObject {
         Task { await capsLockService.cancelAndRestore() }
         reducer.disconnect()
         snapshot = reducer.snapshot()
+        progressSnapshot = nil
+        progressError = nil
     }
 
     func installCodexIntegration() throws {
         try hookInstaller.installOrRepair()
         hookStatus = hookInstaller.status()
         refreshHookTrust()
+        try setActivityEnabled(true)
     }
 
     func removeCodexIntegration() throws {
+        try setActivityEnabled(false)
         try hookInstaller.removeIntegration()
         hookStatus = hookInstaller.status()
         hookTrust = .notChecked
@@ -153,7 +203,17 @@ final class CodexActivityManager: ObservableObject {
         hookStatus = hookInstaller.status()
     }
 
+    func retryActivityServices() throws {
+        stopActivityServices()
+        try startActivityServices()
+    }
+
     func refreshAgentProgress() {
+        guard isActivityEnabled else {
+            progressSnapshot = nil
+            progressError = nil
+            return
+        }
         do {
             progressSnapshot = try progressStore.load()
             progressError = nil
@@ -180,10 +240,13 @@ final class CodexActivityManager: ObservableObject {
         }
     }
 
-    var localObservationStatus: String { localObserver.statusSummary }
+    var localObservationStatus: String {
+        isActivityEnabled ? localObserver.statusSummary : "Off"
+    }
 
     var bridgeStatus: String {
-        FileManager.default.fileExists(atPath: CodexBridgePaths.applicationSupport.socketURL.path)
+        guard isActivityEnabled else { return "Off" }
+        return FileManager.default.fileExists(atPath: CodexBridgePaths.applicationSupport.socketURL.path)
             ? "Listening" : "Offline"
     }
 
@@ -247,6 +310,7 @@ final class CodexActivityManager: ObservableObject {
     }
 
     private func receive(_ bridgeEvent: CodexBridgeEvent) async -> CodexApprovalDecision? {
+        guard isActivityEnabled else { return .deferDecision }
         guard bridgeEvent.event != .ping else { return nil }
         guard let rawSequence = bridgeEvent.deliverySequence,
               let sequence = Int(exactly: rawSequence),
@@ -282,6 +346,7 @@ final class CodexActivityManager: ObservableObject {
     }
 
     private func receive(_ observedEvent: CodexObservedLifecycleEvent) {
+        guard isActivityEnabled else { return }
         nextLocalSequence += 1
         guard let event = observedEvent.activityEvent(sequence: nextLocalSequence),
               reducer.receive(event)
@@ -335,7 +400,7 @@ final class CodexActivityManager: ObservableObject {
         return path.hasPrefix(home + "/") ? "~" + String(path.dropFirst(home.count)) : path
     }
 
-    private static func sanitized(_ value: String) -> String {
+    static func sanitized(_ value: String) -> String {
         let withoutHome = displayPath(value)
         let singleLine = withoutHome.unicodeScalars
             .map { CharacterSet.controlCharacters.contains($0) ? " " : String($0) }
@@ -737,6 +802,36 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                         viewModel.close()
                     }
                 }
+            }
+        }
+
+        KeyboardShortcuts.onKeyDown(for: .assistantPushToTalk) { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self, Defaults[.assistantEnabled] else { return }
+
+                let mouseLocation = NSEvent.mouseLocation
+                var viewModel = self.vm
+                if Defaults[.showOnAllDisplays] {
+                    for screen in NSScreen.screens where screen.frame.contains(mouseLocation) {
+                        if let uuid = screen.displayUUID,
+                           let screenViewModel = self.viewModels[uuid] {
+                            viewModel = screenViewModel
+                            break
+                        }
+                    }
+                }
+
+                self.closeNotchTask?.cancel()
+                self.closeNotchTask = nil
+                self.coordinator.currentView = .assistant
+                _ = viewModel.open()
+                AssistantManager.shared.beginPushToTalk()
+            }
+        }
+
+        KeyboardShortcuts.onKeyUp(for: .assistantPushToTalk) {
+            Task { @MainActor in
+                AssistantManager.shared.endPushToTalk()
             }
         }
 

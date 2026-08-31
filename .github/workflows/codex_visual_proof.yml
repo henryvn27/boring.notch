@@ -4,7 +4,10 @@ on:
   pull_request:
     paths:
       - 'boringNotch/Codex/**'
+      - 'boringNotch/Assistant/**'
       - 'boringNotch/components/Onboarding/**'
+      - 'boringNotch/ContentView.swift'
+      - 'boringNotch/Info.plist'
       - 'boringNotch/boringNotchApp.swift'
       - 'BoringNotchXPCHelper/**'
       - 'boringNotch.xcodeproj/project.pbxproj'
@@ -42,7 +45,21 @@ jobs:
             echo '::error::The release app was not found in DerivedData.'
             exit 1
           fi
+          codesign --force --deep --sign - "$app_path"
+          codesign --verify --deep --strict --verbose=2 "$app_path"
           ditto -c -k --sequesterRsrc --keepParent "$app_path" "$RUNNER_TEMP/boringNotch.app.zip"
+
+      - name: Test Assistant model and parser
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild test \
+            -project boringNotch.xcodeproj \
+            -scheme boringNotch \
+            -configuration Debug \
+            -destination 'platform=macOS' \
+            -only-testing:boringNotchTests/AssistantModelsTests \
+            CODE_SIGNING_ALLOWED=NO
 
       - name: Upload app
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

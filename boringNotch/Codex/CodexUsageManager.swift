@@ -39,6 +39,8 @@ final class CodexUsageManager: ObservableObject {
         refreshTask?.cancel()
         refreshTask = nil
         isRefreshing = false
+        snapshot = nil
+        errorMessage = nil
     }
 
     func refreshAfterActivity(now: Date = Date()) {

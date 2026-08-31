@@ -13,11 +13,14 @@ struct BoringHeader: View {
     @ObservedObject var batteryModel = BatteryStatusViewModel.shared
     @ObservedObject var coordinator = BoringViewCoordinator.shared
     @ObservedObject var codexActivity = CodexActivityManager.shared
+    @ObservedObject var assistant = AssistantManager.shared
+    @Default(.assistantEnabled) private var assistantEnabled
     @StateObject var tvm = ShelfStateViewModel.shared
     var body: some View {
         HStack(spacing: 0) {
             HStack {
                 if !tvm.isEmpty || coordinator.alwaysShowTabs
+                    || assistantEnabled || assistant.hasCompactPresentation
                     || !codexActivity.snapshot.activities.isEmpty
                     || codexActivity.progressSnapshot != nil
                 {
